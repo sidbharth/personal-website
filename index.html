@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>siddharth biju</title>
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow-x: hidden;
+    }
+
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #000;
+      background: #fff;
+      padding: 40px 20px;
+    }
+
+    #content {
+      max-width: 600px;
+    }
+
+    #content p {
+      margin-bottom: 0.5em;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    a:hover, a:active {
+      text-decoration: underline;
+    }
+
+    #cats-trigger {
+      cursor: pointer;
+    }
+    #cats-trigger:hover {
+      text-decoration: underline;
+    }
+
+    #easter-eggs-ui {
+      max-width: 600px;
+      margin-top: 2em;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #999;
+      font-family: monospace;
+      user-select: none;
+    }
+
+    #easter-eggs-ui span {
+      cursor: pointer;
+    }
+
+    #gravity-btn.off {
+      color: #c0392b;
+    }
+    #gravity-btn.on {
+      color: #27ae60;
+    }
+
+    #magnify-trigger:hover {
+      color: #666;
+    }
+
+    #nyan-container {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    #magnifier {
+      display: none;
+      position: fixed;
+      width: 250px;
+      height: 250px;
+      border: 2px solid #333;
+      pointer-events: none;
+      z-index: 10000;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    body.gravity-active {
+      overflow: hidden;
+    }
+
+    body.gravity-active #content p {
+      white-space: nowrap;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 24px 16px;
+        font-size: 15px;
+      }
+      #easter-eggs-ui {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      #magnifier {
+        width: 200px;
+        height: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="content">
+    <p>hi, i'm siddharth biju</p>
+    <p>[writer, researcher, product builder]</p>
+    <p>i work on real problems (food safety) and fake problems (ai??)</p>
+    <p>reach out to me on <a href="https://x.com/sidbharth" target="_blank">twitter</a> or via email at <a href="mailto:hello@sidb.me">hello@sidb.me</a></p>
+    <p>i care about <span id="cats-trigger">cats</span> and don't care about my <a href="https://linkedin.com/in/siddharth-biju/" target="_blank">linkedin</a>.</p>
+  </main>
+
+  <div id="easter-eggs-ui">
+    <span id="magnify-trigger">i have trouble reading</span>
+    <span id="gravity-btn" class="off">gravity [OFF]</span>
+  </div>
+
+  <div id="nyan-container" aria-hidden="true"></div>
+  <audio id="meow-audio" src="meow.mp3" preload="none"></audio>
+  <audio id="meow-boosted" src="meow-boosted.mp3" preload="none"></audio>
+  <div id="magnifier" aria-hidden="true"></div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    // ==========================================
+    // NYAN CAT
+    // ==========================================
+    const nyanCat = {
+      clickCount: 0,
+      clickTimer: null,
+
+      init() {
+        document.getElementById('cats-trigger').addEventListener('click', () => {
+          this.clickCount++;
+          clearTimeout(this.clickTimer);
+          if (this.clickCount >= 7) {
+            this.clickCount = 0;
+            this.launchGiant();
+          } else {
+            this.clickTimer = setTimeout(() => { this.clickCount = 0; }, 2000);
+            this.launch();
+          }
+        });
+      },
+
+      launch(giant) {
+        const container = document.getElementById('nyan-container');
+        container.style.display = 'block';
+
+        const img = document.createElement('img');
+        img.src = 'nyan-cat.gif';
+        const h = giant ? 500 : 100 + Math.random() * 100;
+        img.style.cssText = 'position:absolute;height:' + h + 'px;width:auto;pointer-events:none;';
+
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+
+        // Random direction: 0=L-to-R, 1=R-to-L, 2=top-to-bottom, 3=bottom-to-top
+        const dir = giant ? 0 : Math.floor(Math.random() * 4);
+        const randomAngle = giant ? 0 : (Math.random() - 0.5) * 30;
+        const baseRotation = dir === 2 ? 90 : dir === 3 ? -90 : 0;
+        const angle = baseRotation + randomAngle;
+        const flipX = (dir === 1) ? 'scaleX(-1)' : '';
+        const vertical = (dir === 2 || dir === 3);
+
+        // Starting and ending positions based on direction
+        // Constrain cross-axis to 10%-70% of viewport so cats visibly cross screen
+        let startX, startY, endX, endY;
+        const padY = screenH * 0.1;
+        const rangeY = screenH * 0.6;
+        const padX = screenW * 0.1;
+        const rangeX = screenW * 0.6;
+        if (dir === 0) {
+          startX = -h * 2; endX = screenW + h;
+          startY = giant ? (screenH / 2 - h / 2) : padY + Math.random() * rangeY;
+          endY = startY + (Math.random() - 0.5) * 100;
+        } else if (dir === 1) {
+          startX = screenW + h; endX = -h * 2;
+          startY = padY + Math.random() * rangeY;
+          endY = startY + (Math.random() - 0.5) * 100;
+        } else if (dir === 2) {
+          startY = -h; endY = screenH + h;
+          startX = padX + Math.random() * rangeX;
+          endX = startX + (Math.random() - 0.5) * 100;
+        } else {
+          startY = screenH + h; endY = -h;
+          startX = padX + Math.random() * rangeX;
+          endX = startX + (Math.random() - 0.5) * 100;
+        }
+
+        img.style.left = startX + 'px';
+        img.style.top = startY + 'px';
+        container.appendChild(img);
+
+        const audioSrc = giant ? 'meow-boosted' : 'meow-audio';
+        const audioClone = document.getElementById(audioSrc).cloneNode();
+        audioClone.volume = giant ? 1.0 : 0.5;
+        audioClone.play().catch(() => {});
+
+        const duration = giant ? 4000 : 2000 + Math.random() * 1500;
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+          const progress = (currentTime - startTime) / duration;
+
+          if (progress >= 1) {
+            img.remove();
+            if (container.children.length === 0) container.style.display = 'none';
+            audioClone.pause();
+            return;
+          }
+
+          const x = startX + (endX - startX) * progress;
+          const y = startY + (endY - startY) * progress;
+          const bob = Math.sin(progress * Math.PI * (giant ? 2 : 4)) * (giant ? 20 : 10);
+          img.style.left = x + 'px';
+          img.style.top = y + 'px';
+          const bobTransform = vertical ? 'translateX(' + bob + 'px)' : 'translateY(' + bob + 'px)';
+          img.style.transform = flipX + ' rotate(' + angle + 'deg) ' + bobTransform;
+          requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+      },
+
+      launchGiant() {
+        this.launch(true);
+      }
+    };
+
+    // ==========================================
+    // MAGNIFYING GLASS
+    // ==========================================
+    const magnifier = {
+      active: false,
+      el: null,
+      clone: null,
+      zoom: 2.5,
+
+      getSize() { return window.innerWidth <= 600 ? 200 : 250; },
+
+      init() {
+        this.el = document.getElementById('magnifier');
+        document.getElementById('magnify-trigger').addEventListener('click', () => this.toggle());
+        this._onMove = (e) => this.updatePosition(e.clientX, e.clientY);
+        this._onTouch = (e) => {
+          e.preventDefault();
+          const t = e.touches[0];
+          const isMobile = window.innerWidth <= 600;
+          this.updatePosition(t.clientX, t.clientY + (isMobile ? -80 : 0));
+        };
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && this.active) this.toggle();
+        });
+      },
+
+      toggle() {
+        this.active = !this.active;
+        const trigger = document.getElementById('magnify-trigger');
+
+        if (this.active) {
+          this.createClone();
+          this.el.style.display = 'block';
+          document.body.style.cursor = 'none';
+          trigger.style.color = '#000';
+          trigger.style.fontWeight = 'bold';
+          document.addEventListener('mousemove', this._onMove);
+          document.addEventListener('touchmove', this._onTouch, { passive: false });
+          document.addEventListener('touchstart', this._onTouch, { passive: false });
+        } else {
+          this.el.style.display = 'none';
+          document.body.style.cursor = '';
+          trigger.style.color = '';
+          trigger.style.fontWeight = '';
+          while (this.el.firstChild) this.el.firstChild.remove();
+          this.clone = null;
+          document.removeEventListener('mousemove', this._onMove);
+          document.removeEventListener('touchmove', this._onTouch);
+          document.removeEventListener('touchstart', this._onTouch);
+        }
+      },
+
+      createClone() {
+        if (this.clone) this.clone.remove();
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:absolute;top:0;left:0;transform-origin:0 0;transform:scale(' + this.zoom + ');pointer-events:none;width:' + document.documentElement.scrollWidth + 'px;';
+
+        const bodyMirror = document.createElement('div');
+        const bodyStyles = window.getComputedStyle(document.body);
+        bodyMirror.style.padding = bodyStyles.padding;
+        bodyMirror.style.fontFamily = bodyStyles.fontFamily;
+        bodyMirror.style.fontSize = bodyStyles.fontSize;
+        bodyMirror.style.lineHeight = bodyStyles.lineHeight;
+        bodyMirror.style.color = bodyStyles.color;
+
+        const contentClone = document.getElementById('content').cloneNode(true);
+        contentClone.removeAttribute('id');
+        bodyMirror.appendChild(contentClone);
+
+        wrapper.appendChild(bodyMirror);
+        this.el.appendChild(wrapper);
+        this.clone = wrapper;
+
+        // "[esc] to exit" label
+        const label = document.createElement('span');
+        label.textContent = '[esc] to exit';
+        label.style.cssText = 'position:absolute;top:4px;right:6px;font:10px monospace;color:#999;z-index:1;';
+        this.el.appendChild(label);
+      },
+
+      updatePosition(clientX, clientY) {
+        const size = this.getSize();
+        const half = size / 2;
+
+        // Position square centered on cursor
+        this.el.style.left = (clientX - half) + 'px';
+        this.el.style.top = (clientY - half) + 'px';
+
+        if (this.clone) {
+          const scrollX = window.scrollX || 0;
+          const scrollY = window.scrollY || 0;
+          this.clone.style.left = (-(clientX + scrollX) * this.zoom + half) + 'px';
+          this.clone.style.top = (-(clientY + scrollY) * this.zoom + half) + 'px';
+        }
+      }
+    };
+
+    // ==========================================
+    // GRAVITY
+    // ==========================================
+    const gravity = {
+      engine: null,
+      bodies: [],
+      walls: [],
+      originalPositions: [],
+      animFrameId: null,
+      active: false,
+      matterLoaded: false,
+      resizeHandler: null,
+
+      init() {
+        document.getElementById('gravity-btn').addEventListener('click', () => {
+          if (this.active) this.disable();
+          else this.enable();
+        });
+      },
+
+      loadMatterJS() {
+        return new Promise((resolve, reject) => {
+          if (this.matterLoaded) return resolve();
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js';
+          s.onload = () => { this.matterLoaded = true; resolve(); };
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      },
+
+      async enable() {
+        await this.loadMatterJS();
+
+        this.active = true;
+        const btn = document.getElementById('gravity-btn');
+        btn.textContent = 'gravity [ON]';
+        btn.className = 'on';
+
+        // Anchor the easter-eggs-ui in place
+        const ui = document.getElementById('easter-eggs-ui');
+        const uiRect = ui.getBoundingClientRect();
+        ui.style.position = 'fixed';
+        ui.style.top = uiRect.top + 'px';
+        ui.style.left = uiRect.left + 'px';
+        ui.style.width = uiRect.width + 'px';
+        ui.style.marginTop = '0';
+
+        const { Engine, World, Bodies, Body } = window.Matter;
+        this.engine = Engine.create({ gravity: { x: 0, y: 1 } });
+
+        const paragraphs = Array.from(document.querySelectorAll('#content p'));
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        window.scrollTo(0, 0);
+        document.body.classList.add('gravity-active');
+
+        this.originalPositions = paragraphs.map(p => {
+          const r = p.getBoundingClientRect();
+          return { left: r.left, top: r.top, width: r.width, height: r.height };
+        });
+
+        paragraphs.forEach((p, i) => {
+          const pos = this.originalPositions[i];
+          p.style.position = 'absolute';
+          p.style.left = '0px';
+          p.style.top = '0px';
+          p.style.width = pos.width + 'px';
+          p.style.margin = '0';
+          p.style.transition = 'none';
+          p.style.transformOrigin = 'center center';
+          p.style.transform = 'translate(' + pos.left + 'px,' + pos.top + 'px)';
+        });
+
+        this.bodies = paragraphs.map((p, i) => {
+          const pos = this.originalPositions[i];
+          const body = Bodies.rectangle(
+            pos.left + pos.width / 2,
+            pos.top + pos.height / 2,
+            pos.width,
+            pos.height,
+            { restitution: 0.4, friction: 0.3, frictionAir: 0.01, density: 0.001 }
+          );
+          Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.05);
+          World.add(this.engine.world, body);
+          return { body, element: p };
+        });
+
+        this.createWalls(vw, vh);
+
+        this.resizeHandler = () => {
+          if (!this.active) return;
+          window.Matter.World.remove(this.engine.world, this.walls);
+          this.createWalls(window.innerWidth, window.innerHeight);
+        };
+        window.addEventListener('resize', this.resizeHandler);
+
+        let lastTime = performance.now();
+        const step = (now) => {
+          const delta = Math.min(now - lastTime, 32);
+          lastTime = now;
+          Engine.update(this.engine, delta);
+
+          this.bodies.forEach(({ body, element }, i) => {
+            const pos = this.originalPositions[i];
+            const x = body.position.x - pos.width / 2;
+            const y = body.position.y - pos.height / 2;
+            element.style.transform = 'translate(' + x + 'px,' + y + 'px) rotate(' + body.angle + 'rad)';
+          });
+
+          this.animFrameId = requestAnimationFrame(step);
+        };
+        this.animFrameId = requestAnimationFrame(step);
+      },
+
+      createWalls(vw, vh) {
+        const { Bodies, World } = window.Matter;
+        const t = 60;
+        const ground = Bodies.rectangle(vw / 2, vh + t / 2, vw * 2, t, { isStatic: true });
+        const left = Bodies.rectangle(-t / 2, vh / 2, t, vh * 3, { isStatic: true });
+        const right = Bodies.rectangle(vw + t / 2, vh / 2, t, vh * 3, { isStatic: true });
+        this.walls = [ground, left, right];
+        World.add(this.engine.world, this.walls);
+      },
+
+      disable() {
+        this.active = false;
+        const btn = document.getElementById('gravity-btn');
+        btn.textContent = 'gravity [OFF]';
+        btn.className = 'off';
+
+        cancelAnimationFrame(this.animFrameId);
+        if (this.resizeHandler) {
+          window.removeEventListener('resize', this.resizeHandler);
+          this.resizeHandler = null;
+        }
+
+        const paragraphs = Array.from(document.querySelectorAll('#content p'));
+        paragraphs.forEach((p, i) => {
+          const pos = this.originalPositions[i];
+          p.style.transition = 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+          p.style.transform = 'translate(' + pos.left + 'px,' + pos.top + 'px) rotate(0rad)';
+        });
+
+        setTimeout(() => {
+          paragraphs.forEach(p => {
+            p.style.position = '';
+            p.style.left = '';
+            p.style.top = '';
+            p.style.width = '';
+            p.style.margin = '';
+            p.style.transform = '';
+            p.style.transition = '';
+            p.style.transformOrigin = '';
+          });
+          document.body.classList.remove('gravity-active');
+          // Restore easter-eggs-ui to flow
+          const ui = document.getElementById('easter-eggs-ui');
+          ui.style.position = '';
+          ui.style.top = '';
+          ui.style.left = '';
+          ui.style.width = '';
+          ui.style.marginTop = '';
+        }, 650);
+
+        if (this.engine) {
+          window.Matter.World.clear(this.engine.world);
+          window.Matter.Engine.clear(this.engine);
+          this.engine = null;
+        }
+        this.bodies = [];
+        this.walls = [];
+      }
+    };
+
+    // ==========================================
+    // INIT
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', () => {
+      nyanCat.init();
+      magnifier.init();
+      gravity.init();
+    });
+  })();
+  </script>
+</body>
+</html>
