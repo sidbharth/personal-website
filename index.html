@@ -295,6 +295,8 @@
 
         const contentClone = document.getElementById('content').cloneNode(true);
         contentClone.removeAttribute('id');
+        contentClone.style.maxWidth = '600px';
+        contentClone.style.margin = '0 auto';
         bodyMirror.appendChild(contentClone);
 
         wrapper.appendChild(bodyMirror);
