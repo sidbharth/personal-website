@@ -115,9 +115,8 @@
         align-items: flex-start;
         gap: 4px;
       }
-      #magnifier {
-        width: 200px;
-        height: 200px;
+      #magnify-trigger {
+        display: none;
       }
     }
   </style>
@@ -179,37 +178,15 @@
         const screenH = window.innerHeight;
 
         // Random direction: 0=L-to-R, 1=R-to-L, 2=top-to-bottom, 3=bottom-to-top
-        const dir = giant ? 0 : Math.floor(Math.random() * 4);
-        const randomAngle = giant ? 0 : (Math.random() - 0.5) * 30;
-        const baseRotation = dir === 2 ? 90 : dir === 3 ? -90 : 0;
-        const angle = baseRotation + randomAngle;
-        const flipX = (dir === 1) ? 'scaleX(-1)' : '';
-        const vertical = (dir === 2 || dir === 3);
+        const angle = giant ? 0 : (Math.random() - 0.5) * 30;
 
-        // Starting and ending positions based on direction
-        // Constrain cross-axis to 10%-70% of viewport so cats visibly cross screen
-        let startX, startY, endX, endY;
+        // Always left-to-right, random Y position
         const padY = screenH * 0.1;
         const rangeY = screenH * 0.6;
-        const padX = screenW * 0.1;
-        const rangeX = screenW * 0.6;
-        if (dir === 0) {
-          startX = -h * 2; endX = screenW + h;
-          startY = giant ? (screenH / 2 - h / 2) : padY + Math.random() * rangeY;
-          endY = startY + (Math.random() - 0.5) * 100;
-        } else if (dir === 1) {
-          startX = screenW + h; endX = -h * 2;
-          startY = padY + Math.random() * rangeY;
-          endY = startY + (Math.random() - 0.5) * 100;
-        } else if (dir === 2) {
-          startY = -h; endY = screenH + h;
-          startX = padX + Math.random() * rangeX;
-          endX = startX + (Math.random() - 0.5) * 100;
-        } else {
-          startY = screenH + h; endY = -h;
-          startX = padX + Math.random() * rangeX;
-          endX = startX + (Math.random() - 0.5) * 100;
-        }
+        const startX = -h * 2;
+        const endX = screenW + h;
+        const startY = giant ? (screenH / 2 - h / 2) : padY + Math.random() * rangeY;
+        const endY = startY + (Math.random() - 0.5) * 100;
 
         img.style.left = startX + 'px';
         img.style.top = startY + 'px';
@@ -238,8 +215,7 @@
           const bob = Math.sin(progress * Math.PI * (giant ? 2 : 4)) * (giant ? 20 : 10);
           img.style.left = x + 'px';
           img.style.top = y + 'px';
-          const bobTransform = vertical ? 'translateX(' + bob + 'px)' : 'translateY(' + bob + 'px)';
-          img.style.transform = flipX + ' rotate(' + angle + 'deg) ' + bobTransform;
+          img.style.transform = 'rotate(' + angle + 'deg) translateY(' + bob + 'px)';
           requestAnimationFrame(animate);
         };
         requestAnimationFrame(animate);
@@ -273,13 +249,6 @@
         };
         document.addEventListener('keydown', (e) => {
           if (e.key === 'Escape' && this.active) this.toggle();
-        });
-        // Double-tap to exit on mobile
-        let lastTap = 0;
-        this.el.addEventListener('touchend', (e) => {
-          const now = Date.now();
-          if (now - lastTap < 400) { this.toggle(); lastTap = 0; }
-          else lastTap = now;
         });
       },
 
@@ -333,7 +302,7 @@
 
         // "[esc] to exit" label
         const label = document.createElement('span');
-        label.textContent = window.innerWidth <= 600 ? 'double-tap to exit' : '[esc] to exit';
+        label.textContent = '[esc] to exit';
         label.style.cssText = 'position:absolute;top:4px;right:6px;font:10px monospace;color:#999;z-index:1;';
         this.el.appendChild(label);
       },
