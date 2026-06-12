@@ -178,48 +178,68 @@
         const screenW = window.innerWidth;
         const screenH = window.innerHeight;
 
-        // Random direction: 0=L-to-R, 1=R-to-L, 2=top-to-bottom, 3=bottom-to-top
-        const angle = giant ? 0 : (Math.random() - 0.5) * 30;
-
-        // Always left-to-right, random Y position
+        // Always left-to-right, level flight, random Y position.
+        // The gif is far wider than tall, so wait for it to load,
+        // measure it, and start the whole thing past the left edge.
         const padY = screenH * 0.1;
         const rangeY = screenH * 0.6;
-        const startX = -h * 2;
-        const endX = screenW + h;
         const startY = giant ? (screenH / 2 - h / 2) : padY + Math.random() * rangeY;
-        const endY = startY + (Math.random() - 0.5) * 100;
 
-        img.style.left = startX + 'px';
+        img.style.left = '-99999px';
         img.style.top = startY + 'px';
         container.appendChild(img);
 
         const audioSrc = giant ? 'meow-boosted' : 'meow-audio';
         const audioClone = document.getElementById(audioSrc).cloneNode();
         audioClone.volume = giant ? 1.0 : 0.5;
-        audioClone.play().catch(() => {});
 
         const duration = giant ? 4000 : 2000 + Math.random() * 1500;
-        const startTime = performance.now();
 
-        const animate = (currentTime) => {
-          const progress = (currentTime - startTime) / duration;
+        const begin = () => {
+          const imgW = img.getBoundingClientRect().width || h * 2;
+          const startX = -imgW;
+          const endX = screenW;
+          const fadeMs = 300;
+          let fadeStart = null;
+          audioClone.play().catch(() => {});
+          const startTime = performance.now();
 
-          if (progress >= 1) {
+          const cleanup = () => {
             img.remove();
             if (container.children.length === 0) container.style.display = 'none';
             audioClone.pause();
-            return;
-          }
+          };
 
-          const x = startX + (endX - startX) * progress;
-          const y = startY + (endY - startY) * progress;
-          const bob = Math.sin(progress * Math.PI * (giant ? 2 : 4)) * (giant ? 20 : 10);
-          img.style.left = x + 'px';
-          img.style.top = y + 'px';
-          img.style.transform = 'rotate(' + angle + 'deg) translateY(' + bob + 'px)';
+          const animate = (currentTime) => {
+            const progress = (currentTime - startTime) / duration;
+
+            if (progress >= 1) {
+              cleanup();
+              return;
+            }
+
+            const x = startX + (endX - startX) * progress;
+            const bob = Math.sin(progress * Math.PI * (giant ? 2 : 4)) * (giant ? 20 : 10);
+            img.style.left = x + 'px';
+            img.style.transform = 'translateY(' + bob + 'px)';
+
+            // Once the cat (leading edge) exits the right side of the
+            // screen, quickly fade out the trailing rainbow.
+            if (fadeStart === null && x + imgW >= screenW) fadeStart = currentTime;
+            if (fadeStart !== null) {
+              const fade = (currentTime - fadeStart) / fadeMs;
+              if (fade >= 1) {
+                cleanup();
+                return;
+              }
+              img.style.opacity = 1 - fade;
+            }
+            requestAnimationFrame(animate);
+          };
           requestAnimationFrame(animate);
         };
-        requestAnimationFrame(animate);
+        if (img.complete && img.naturalWidth > 0) begin();
+        else img.addEventListener('load', begin);
       },
 
       launchGiant() {
