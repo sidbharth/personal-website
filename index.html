@@ -204,10 +204,10 @@
           audioClone.play().catch(() => {});
           const startTime = performance.now();
 
+          // The meow always plays to the end, even after the gif is gone.
           const cleanup = () => {
             img.remove();
             if (container.children.length === 0) container.style.display = 'none';
-            audioClone.pause();
           };
 
           const animate = (currentTime) => {
