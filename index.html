@@ -443,11 +443,125 @@
         const btn = document.getElementById('integrity-btn');
         btn.textContent = 'integrity [' + (this.integrity ? 'ON' : 'OFF') + ']';
         btn.className = this.integrity ? 'on' : 'off';
-        // If gravity is already on, rebuild the world at the new granularity
         if (this.active) {
-          this.disable();
-          setTimeout(() => { if (!this.active) this.enable(); }, 700);
+          if (!this.integrity) {
+            // Shatter the fallen paragraphs right where they lie
+            this.breakApart();
+          } else {
+            // Restoring integrity needs a fresh drop
+            this.disable();
+            setTimeout(() => { if (!this.active) this.enable(); }, 700);
+          }
         }
+      },
+
+      // Split a paragraph's contents into word units. Words get wrapped
+      // in spans; inline elements (links, trigger spans) stay whole so
+      // their listeners survive.
+      splitIntoWords(p) {
+        const units = [];
+        Array.from(p.childNodes).forEach(node => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            node.textContent.split(/(\s+)/).forEach(part => {
+              if (!part) return;
+              if (/^\s+$/.test(part)) {
+                p.insertBefore(document.createTextNode(part), node);
+              } else {
+                const word = document.createElement('span');
+                word.textContent = part;
+                p.insertBefore(word, node);
+                units.push(word);
+              }
+            });
+            p.removeChild(node);
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            units.push(node);
+          }
+        });
+        return units;
+      },
+
+      // Replace each falling paragraph's body with per-word bodies at the
+      // words' current (fallen, rotated) positions, inheriting velocity —
+      // the pile crumbles in place instead of resetting.
+      breakApart() {
+        const { World, Bodies, Body } = window.Matter;
+        const paragraphs = this.fallingEls;
+        const oldBodies = this.bodies;
+        const oldPositions = this.originalPositions;
+
+        this.savedChildren = paragraphs.map(p => Array.from(p.childNodes));
+        const newEls = [];
+        const newPositions = [];
+        const newBodies = [];
+
+        paragraphs.forEach((p, i) => {
+          const pPos = oldPositions[i];
+          const body = oldBodies[i].body;
+          const units = this.splitIntoWords(p);
+
+          // Measure the words with the paragraph parked at its resting
+          // spot; these rects double as the return-home positions
+          p.style.transform = 'translate(' + pPos.left + 'px,' + pPos.top + 'px)';
+          const rests = units.map(u => {
+            const r = u.getBoundingClientRect();
+            return { left: r.left, top: r.top, width: r.width, height: r.height };
+          });
+
+          const pcx = pPos.left + pPos.width / 2;
+          const pcy = pPos.top + pPos.height / 2;
+          const cos = Math.cos(body.angle);
+          const sin = Math.sin(body.angle);
+
+          units.forEach((u, j) => {
+            const rest = rests[j];
+            // Rotate the word's rest offset into the fallen paragraph's frame
+            const rx = rest.left + rest.width / 2 - pcx;
+            const ry = rest.top + rest.height / 2 - pcy;
+            const fx = body.position.x + rx * cos - ry * sin;
+            const fy = body.position.y + rx * sin + ry * cos;
+
+            const wb = Bodies.rectangle(fx, fy, rest.width, rest.height, {
+              restitution: 0.4, friction: 0.3, frictionAir: 0.01, density: 0.001,
+              angle: body.angle
+            });
+            Body.setVelocity(wb, {
+              x: body.velocity.x - body.angularVelocity * (fy - body.position.y),
+              y: body.velocity.y + body.angularVelocity * (fx - body.position.x)
+            });
+            Body.setAngularVelocity(wb, body.angularVelocity + (Math.random() - 0.5) * 0.08);
+            World.add(this.engine.world, wb);
+
+            u.style.position = 'absolute';
+            u.style.left = '0px';
+            u.style.top = '0px';
+            u.style.width = rest.width + 'px';
+            u.style.margin = '0';
+            u.style.transition = 'none';
+            u.style.transformOrigin = 'center center';
+            u.style.transform = 'translate(' + (fx - rest.width / 2) + 'px,' + (fy - rest.height / 2) + 'px) rotate(' + body.angle + 'rad)';
+
+            newEls.push(u);
+            newPositions.push(rest);
+            newBodies.push({ body: wb, element: u });
+          });
+
+          World.remove(this.engine.world, body);
+
+          // The emptied paragraph returns to normal flow
+          p.style.position = '';
+          p.style.left = '';
+          p.style.top = '';
+          p.style.width = '';
+          p.style.margin = '';
+          p.style.transform = '';
+          p.style.transition = '';
+          p.style.transformOrigin = '';
+        });
+
+        this.fallingEls = newEls;
+        this.originalPositions = newPositions;
+        this.bodies = newBodies;
       },
 
       loadMatterJS() {
@@ -497,25 +611,7 @@
           this.savedChildren = paragraphs.map(p => Array.from(p.childNodes));
           this.fallingEls = [];
           paragraphs.forEach(p => {
-            Array.from(p.childNodes).forEach(node => {
-              if (node.nodeType === Node.TEXT_NODE) {
-                node.textContent.split(/(\s+)/).forEach(part => {
-                  if (!part) return;
-                  if (/^\s+$/.test(part)) {
-                    p.insertBefore(document.createTextNode(part), node);
-                  } else {
-                    const word = document.createElement('span');
-                    word.textContent = part;
-                    p.insertBefore(word, node);
-                    this.fallingEls.push(word);
-                  }
-                });
-                p.removeChild(node);
-              } else if (node.nodeType === Node.ELEMENT_NODE) {
-                // Links and trigger spans fall whole, listeners intact
-                this.fallingEls.push(node);
-              }
-            });
+            this.fallingEls.push.apply(this.fallingEls, this.splitIntoWords(p));
           });
         }
 
