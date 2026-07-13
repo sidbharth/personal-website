@@ -429,6 +429,7 @@
       integrity: true,
       fallingEls: [],
       savedChildren: null,
+      assembling: false,
 
       init() {
         document.getElementById('gravity-btn').addEventListener('click', () => {
@@ -439,6 +440,7 @@
       },
 
       toggleIntegrity() {
+        if (this.assembling) return;
         this.integrity = !this.integrity;
         const btn = document.getElementById('integrity-btn');
         btn.textContent = 'integrity [' + (this.integrity ? 'ON' : 'OFF') + ']';
@@ -448,9 +450,8 @@
             // Shatter the fallen paragraphs right where they lie
             this.breakApart();
           } else {
-            // Restoring integrity needs a fresh drop
-            this.disable();
-            setTimeout(() => { if (!this.active) this.enable(); }, 700);
+            // Reassemble the sentences down on the floor
+            this.reassemble();
           }
         }
       },
@@ -562,6 +563,132 @@
         this.fallingEls = newEls;
         this.originalPositions = newPositions;
         this.bodies = newBodies;
+      },
+
+      // Gather the scattered words into sentence formation down on the
+      // floor, then swap in whole-paragraph bodies — no lifting back up.
+      reassemble() {
+        const { World, Bodies } = window.Matter;
+        const words = this.fallingEls;
+        const wordBodies = this.bodies;
+        const wordRests = this.originalPositions;
+        const savedChildren = this.savedChildren;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        this.assembling = true;
+
+        // Group the words by the paragraph they came from
+        const paragraphs = Array.from(document.querySelectorAll('#content p'));
+        const groups = paragraphs.map(() => ({ idx: [] }));
+        words.forEach((el, i) => {
+          const gi = paragraphs.indexOf(el.closest('p'));
+          if (gi >= 0) groups[gi].idx.push(i);
+        });
+
+        groups.forEach(g => {
+          if (!g.idx.length) return;
+          // Sentence bounding box at rest, rebuilt from its words
+          let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+          let cx = 0, cy = 0;
+          g.idx.forEach(i => {
+            const w = wordRests[i];
+            l = Math.min(l, w.left);
+            t = Math.min(t, w.top);
+            r = Math.max(r, w.left + w.width);
+            b = Math.max(b, w.top + w.height);
+            cx += wordBodies[i].body.position.x;
+            cy += wordBodies[i].body.position.y;
+          });
+          g.rest = { left: l, top: t, width: r - l, height: b - t };
+          g.cx = cx / g.idx.length;
+          g.cy = cy / g.idx.length;
+        });
+
+        // The words leave the physics world while they glide into place
+        wordBodies.forEach(entry => World.remove(this.engine.world, entry.body));
+        this.bodies = [];
+
+        // Stack the sentences on the floor, lowest-lying pile first
+        const order = groups.map((g, i) => i).filter(i => groups[i].idx.length)
+          .sort((a, b) => groups[b].cy - groups[a].cy);
+        let floor = vh;
+        order.forEach(gi => {
+          const g = groups[gi];
+          g.targetTop = floor - g.rest.height;
+          g.targetLeft = Math.max(0, Math.min(g.cx - g.rest.width / 2, vw - g.rest.width));
+          floor = g.targetTop;
+        });
+
+        // Glide every word to its slot in the lying-down sentence
+        groups.forEach(g => {
+          if (!g.idx.length) return;
+          g.idx.forEach(i => {
+            const el = words[i];
+            const rest = wordRests[i];
+            const tx = g.targetLeft + (rest.left - g.rest.left);
+            const ty = g.targetTop + (rest.top - g.rest.top);
+            el.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+            el.style.transform = 'translate(' + tx + 'px,' + ty + 'px) rotate(0rad)';
+          });
+        });
+
+        setTimeout(() => {
+          this.assembling = false;
+          if (!this.active) return;
+
+          const newEls = [];
+          const newPositions = [];
+          const newBodies = [];
+          groups.forEach((g, gi) => {
+            if (!g.idx.length) return;
+            const p = paragraphs[gi];
+
+            // Reassemble the sentence from its original nodes
+            while (p.firstChild) p.firstChild.remove();
+            savedChildren[gi].forEach(node => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                node.style.position = '';
+                node.style.left = '';
+                node.style.top = '';
+                node.style.width = '';
+                node.style.margin = '';
+                node.style.transform = '';
+                node.style.transition = '';
+                node.style.transformOrigin = '';
+              }
+              p.appendChild(node);
+            });
+
+            // The whole paragraph now lies flat in its floor slot
+            p.style.position = 'absolute';
+            p.style.left = '0px';
+            p.style.top = '0px';
+            p.style.width = g.rest.width + 'px';
+            p.style.margin = '0';
+            p.style.transition = 'none';
+            p.style.transformOrigin = 'center center';
+            p.style.transform = 'translate(' + g.targetLeft + 'px,' + g.targetTop + 'px)';
+
+            const body = Bodies.rectangle(
+              g.targetLeft + g.rest.width / 2,
+              g.targetTop + g.rest.height / 2,
+              g.rest.width,
+              g.rest.height,
+              { restitution: 0.4, friction: 0.3, frictionAir: 0.01, density: 0.001 }
+            );
+            World.add(this.engine.world, body);
+
+            newEls.push(p);
+            newPositions.push(g.rest);
+            newBodies.push({ body: body, element: p });
+          });
+
+          this.fallingEls = newEls;
+          this.originalPositions = newPositions;
+          this.bodies = newBodies;
+          this.savedChildren = null;
+        }, 550);
       },
 
       loadMatterJS() {
