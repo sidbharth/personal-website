@@ -64,10 +64,12 @@
       cursor: pointer;
     }
 
-    #gravity-btn.off {
+    #gravity-btn.off,
+    #integrity-btn.off {
       color: #c0392b;
     }
-    #gravity-btn.on {
+    #gravity-btn.on,
+    #integrity-btn.on {
       color: #27ae60;
     }
 
@@ -170,6 +172,7 @@
   <div id="easter-eggs-ui">
     <span id="magnify-trigger">i have trouble reading</span>
     <span id="gulu-btn">gulu gulu mode</span>
+    <span id="integrity-btn" class="on">integrity [ON]</span>
     <span id="gravity-btn" class="off">gravity [OFF]</span>
   </div>
 
@@ -423,12 +426,28 @@
       active: false,
       matterLoaded: false,
       resizeHandler: null,
+      integrity: true,
+      fallingEls: [],
+      savedChildren: null,
 
       init() {
         document.getElementById('gravity-btn').addEventListener('click', () => {
           if (this.active) this.disable();
           else this.enable();
         });
+        document.getElementById('integrity-btn').addEventListener('click', () => this.toggleIntegrity());
+      },
+
+      toggleIntegrity() {
+        this.integrity = !this.integrity;
+        const btn = document.getElementById('integrity-btn');
+        btn.textContent = 'integrity [' + (this.integrity ? 'ON' : 'OFF') + ']';
+        btn.className = this.integrity ? 'on' : 'off';
+        // If gravity is already on, rebuild the world at the new granularity
+        if (this.active) {
+          this.disable();
+          setTimeout(() => { if (!this.active) this.enable(); }, 700);
+        }
       },
 
       loadMatterJS() {
@@ -469,24 +488,55 @@
         window.scrollTo(0, 0);
         document.body.classList.add('gravity-active');
 
-        this.originalPositions = paragraphs.map(p => {
-          const r = p.getBoundingClientRect();
+        // With sentence integrity on, whole paragraphs fall; with it off,
+        // sentences break apart and every word falls on its own
+        if (this.integrity) {
+          this.fallingEls = paragraphs;
+          this.savedChildren = null;
+        } else {
+          this.savedChildren = paragraphs.map(p => Array.from(p.childNodes));
+          this.fallingEls = [];
+          paragraphs.forEach(p => {
+            Array.from(p.childNodes).forEach(node => {
+              if (node.nodeType === Node.TEXT_NODE) {
+                node.textContent.split(/(\s+)/).forEach(part => {
+                  if (!part) return;
+                  if (/^\s+$/.test(part)) {
+                    p.insertBefore(document.createTextNode(part), node);
+                  } else {
+                    const word = document.createElement('span');
+                    word.textContent = part;
+                    p.insertBefore(word, node);
+                    this.fallingEls.push(word);
+                  }
+                });
+                p.removeChild(node);
+              } else if (node.nodeType === Node.ELEMENT_NODE) {
+                // Links and trigger spans fall whole, listeners intact
+                this.fallingEls.push(node);
+              }
+            });
+          });
+        }
+
+        this.originalPositions = this.fallingEls.map(el => {
+          const r = el.getBoundingClientRect();
           return { left: r.left, top: r.top, width: r.width, height: r.height };
         });
 
-        paragraphs.forEach((p, i) => {
+        this.fallingEls.forEach((el, i) => {
           const pos = this.originalPositions[i];
-          p.style.position = 'absolute';
-          p.style.left = '0px';
-          p.style.top = '0px';
-          p.style.width = pos.width + 'px';
-          p.style.margin = '0';
-          p.style.transition = 'none';
-          p.style.transformOrigin = 'center center';
-          p.style.transform = 'translate(' + pos.left + 'px,' + pos.top + 'px)';
+          el.style.position = 'absolute';
+          el.style.left = '0px';
+          el.style.top = '0px';
+          el.style.width = pos.width + 'px';
+          el.style.margin = '0';
+          el.style.transition = 'none';
+          el.style.transformOrigin = 'center center';
+          el.style.transform = 'translate(' + pos.left + 'px,' + pos.top + 'px)';
         });
 
-        this.bodies = paragraphs.map((p, i) => {
+        this.bodies = this.fallingEls.map((el, i) => {
           const pos = this.originalPositions[i];
           const body = Bodies.rectangle(
             pos.left + pos.width / 2,
@@ -497,7 +547,7 @@
           );
           Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.05);
           World.add(this.engine.world, body);
-          return { body, element: p };
+          return { body, element: el };
         });
 
         this.createWalls(vw, vh);
@@ -549,24 +599,33 @@
           this.resizeHandler = null;
         }
 
-        const paragraphs = Array.from(document.querySelectorAll('#content p'));
-        paragraphs.forEach((p, i) => {
+        const els = this.fallingEls;
+        const savedChildren = this.savedChildren;
+        els.forEach((el, i) => {
           const pos = this.originalPositions[i];
-          p.style.transition = 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-          p.style.transform = 'translate(' + pos.left + 'px,' + pos.top + 'px) rotate(0rad)';
+          el.style.transition = 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+          el.style.transform = 'translate(' + pos.left + 'px,' + pos.top + 'px) rotate(0rad)';
         });
 
         setTimeout(() => {
-          paragraphs.forEach(p => {
-            p.style.position = '';
-            p.style.left = '';
-            p.style.top = '';
-            p.style.width = '';
-            p.style.margin = '';
-            p.style.transform = '';
-            p.style.transition = '';
-            p.style.transformOrigin = '';
+          els.forEach(el => {
+            el.style.position = '';
+            el.style.left = '';
+            el.style.top = '';
+            el.style.width = '';
+            el.style.margin = '';
+            el.style.transform = '';
+            el.style.transition = '';
+            el.style.transformOrigin = '';
           });
+          if (savedChildren) {
+            // Reassemble the broken sentences from their original nodes
+            const paragraphs = Array.from(document.querySelectorAll('#content p'));
+            paragraphs.forEach((p, i) => {
+              while (p.firstChild) p.firstChild.remove();
+              savedChildren[i].forEach(node => p.appendChild(node));
+            });
+          }
           document.body.classList.remove('gravity-active');
           // Restore easter-eggs-ui to flow
           const ui = document.getElementById('easter-eggs-ui');
@@ -584,6 +643,8 @@
         }
         this.bodies = [];
         this.walls = [];
+        this.fallingEls = [];
+        this.savedChildren = null;
       }
     };
 
