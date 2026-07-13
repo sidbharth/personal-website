@@ -120,6 +120,20 @@
       background: #fff;
     }
 
+    /* Mirrored id-based styles for the magnifier's clones */
+    #magnifier .mag-content p {
+      margin-bottom: 0.5em;
+    }
+    #magnifier .mag-ui {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #999;
+      font-family: monospace;
+    }
+    #magnifier .mag-ui .off { color: #c0392b; }
+    #magnifier .mag-ui .on { color: #27ae60; }
+
     body.gravity-active {
       overflow: hidden;
     }
@@ -305,6 +319,11 @@
         document.addEventListener('keydown', (e) => {
           if (e.key === 'Escape' && this.active) this.toggle();
         });
+        // The flex centering moves with the viewport, so cloned
+        // positions go stale on resize
+        window.addEventListener('resize', () => {
+          if (this.active) this.createClone();
+        });
       },
 
       toggle() {
@@ -334,26 +353,33 @@
       },
 
       createClone() {
-        if (this.clone) this.clone.remove();
+        while (this.el.firstChild) this.el.firstChild.remove();
 
         const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:absolute;top:0;left:0;transform-origin:0 0;transform:scale(' + this.zoom + ');pointer-events:none;width:' + document.documentElement.scrollWidth + 'px;';
-
-        const bodyMirror = document.createElement('div');
+        wrapper.style.cssText = 'position:absolute;top:0;left:0;transform-origin:0 0;transform:scale(' + this.zoom + ');pointer-events:none;';
         const bodyStyles = window.getComputedStyle(document.body);
-        bodyMirror.style.padding = bodyStyles.padding;
-        bodyMirror.style.fontFamily = bodyStyles.fontFamily;
-        bodyMirror.style.fontSize = bodyStyles.fontSize;
-        bodyMirror.style.lineHeight = bodyStyles.lineHeight;
-        bodyMirror.style.color = bodyStyles.color;
+        wrapper.style.fontFamily = bodyStyles.fontFamily;
+        wrapper.style.fontSize = bodyStyles.fontSize;
+        wrapper.style.lineHeight = bodyStyles.lineHeight;
+        wrapper.style.color = bodyStyles.color;
 
-        const contentClone = document.getElementById('content').cloneNode(true);
-        contentClone.removeAttribute('id');
-        contentClone.style.maxWidth = '600px';
-        contentClone.style.margin = '0 auto';
-        bodyMirror.appendChild(contentClone);
+        // Clone each block at its real on-page position, so the magnified
+        // copy lines up exactly with what sits under the lens
+        [['content', 'mag-content'], ['easter-eggs-ui', 'mag-ui']].forEach((pair) => {
+          const src = document.getElementById(pair[0]);
+          const rect = src.getBoundingClientRect();
+          const clone = src.cloneNode(true);
+          clone.removeAttribute('id');
+          clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+          clone.classList.add(pair[1]);
+          clone.style.position = 'absolute';
+          clone.style.left = (rect.left + window.scrollX) + 'px';
+          clone.style.top = (rect.top + window.scrollY) + 'px';
+          clone.style.width = rect.width + 'px';
+          clone.style.margin = '0';
+          wrapper.appendChild(clone);
+        });
 
-        wrapper.appendChild(bodyMirror);
         this.el.appendChild(wrapper);
         this.clone = wrapper;
 
@@ -368,15 +394,19 @@
         const size = this.getSize();
         const half = size / 2;
 
-        // Position square centered on cursor
-        this.el.style.left = (clientX - half) + 'px';
-        this.el.style.top = (clientY - half) + 'px';
+        // Center the lens on the cursor, but keep it inside the viewport
+        const left = Math.max(0, Math.min(clientX - half, window.innerWidth - size));
+        const top = Math.max(0, Math.min(clientY - half, window.innerHeight - size));
+        this.el.style.left = left + 'px';
+        this.el.style.top = top + 'px';
 
         if (this.clone) {
-          const scrollX = window.scrollX || 0;
-          const scrollY = window.scrollY || 0;
-          this.clone.style.left = (-(clientX + scrollX) * this.zoom + half) + 'px';
-          this.clone.style.top = (-(clientY + scrollY) * this.zoom + half) + 'px';
+          // The magnified point under the cursor stays under the cursor,
+          // even when the lens is clamped at a viewport edge
+          const pageX = clientX + (window.scrollX || 0);
+          const pageY = clientY + (window.scrollY || 0);
+          this.clone.style.left = (clientX - left - pageX * this.zoom) + 'px';
+          this.clone.style.top = (clientY - top - pageY * this.zoom) + 'px';
         }
       }
     };
