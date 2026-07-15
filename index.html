@@ -183,6 +183,7 @@
   </div>
   <audio id="meow-audio" src="meow.mp3" preload="none"></audio>
   <audio id="meow-boosted" src="meow-boosted.mp3" preload="none"></audio>
+  <audio id="water-sfx" src="water-sfx.mp3" preload="none" loop></audio>
   <div id="magnifier" aria-hidden="true"></div>
 
   <script type="module">
@@ -891,6 +892,8 @@
       lastRipple: 0,
       fishAngle: 0,
       wagPhase: 0,
+      audio: null,
+      audioVol: 0,
 
       init() {
         this.overlay = document.getElementById('gulu-overlay');
@@ -911,6 +914,11 @@
         this.overlay.style.display = 'block';
         this.mouse.x = this.fish.x = window.innerWidth / 2;
         this.mouse.y = this.fish.y = window.innerHeight / 2;
+        // Water sfx loops silently and swells as the fish swims
+        this.audio = document.getElementById('water-sfx');
+        this.audio.volume = 0;
+        this.audioVol = 0;
+        this.audio.play().catch(() => {});
         window.addEventListener('mousemove', this._onMove);
         window.addEventListener('touchmove', this._onTouch, { passive: true });
         window.addEventListener('resize', this._onResize);
@@ -927,6 +935,10 @@
         this.active = false;
         cancelAnimationFrame(this.raf);
         this.ripples = [];
+        if (this.audio) {
+          this.audio.pause();
+          this.audio.currentTime = 0;
+        }
         this.overlay.style.display = 'none';
         window.removeEventListener('mousemove', this._onMove);
         window.removeEventListener('touchmove', this._onTouch);
@@ -1067,6 +1079,13 @@
         this.wagPhase += dt * (7 + fishSpeed * 1.2);
         const wag = Math.sin(this.wagPhase) * (0.35 + Math.min(fishSpeed * 0.05, 0.65));
         this.drawFish(ctx, f.x, f.y + Math.sin(now / 600) * 1.5, this.fishAngle, wag);
+
+        // Swell the water sound with swim speed, ease it back to silence
+        if (this.audio) {
+          const target = Math.min(fishSpeed / 12, 1) * 0.6;
+          this.audioVol += (target - this.audioVol) * (target > this.audioVol ? 0.15 : 0.04);
+          this.audio.volume = Math.max(0, Math.min(this.audioVol, 1));
+        }
       },
 
       drawFish(ctx, x, y, angle, wag) {
