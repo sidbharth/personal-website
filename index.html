@@ -975,9 +975,11 @@
         this.ctx = this.canvas.getContext('2d');
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.words = [];
-        // One word repeated forever needs no measuring: fixed cells,
-        // alternate rows staggered brick-style
-        const cellW = 54;
+        // Pack the words like real text: one canvas-native measure of
+        // "gulu " gives the exact advance, so rows read as straight
+        // continuous lines
+        this.ctx.font = this.font;
+        const cellW = this.ctx.measureText('gulu ').width || 34;
         const cellH = 26;
         for (let y = cellH; y < hgt + cellH; y += cellH) {
           const stagger = ((y / cellH) % 2) * (cellW / 2);
