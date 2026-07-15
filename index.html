@@ -73,6 +73,25 @@
       color: #27ae60;
     }
 
+    /* Integrity is a sub-mode of gravity: nested under it, dimmed
+       until gravity is actually on (class-based so the magnifier's
+       clone inherits the look too) */
+    .gravity-group {
+      display: inline-flex;
+      gap: 12px;
+      align-items: baseline;
+    }
+    .integrity-btn {
+      opacity: 0.45;
+    }
+    .integrity-btn::before {
+      content: '└ ';
+      color: #bbb;
+    }
+    body.gravity-active .integrity-btn {
+      opacity: 1;
+    }
+
     #magnify-trigger:hover {
       color: #666;
     }
@@ -172,8 +191,10 @@
   <div id="easter-eggs-ui">
     <span id="magnify-trigger">i have trouble reading</span>
     <span id="gulu-btn">gulu gulu mode</span>
-    <span id="integrity-btn" class="on">integrity [ON]</span>
-    <span id="gravity-btn" class="off">gravity [OFF]</span>
+    <span class="gravity-group">
+      <span id="gravity-btn" class="off">gravity [OFF]</span>
+      <span id="integrity-btn" class="integrity-btn on">integrity [ON]</span>
+    </span>
   </div>
 
   <div id="nyan-container" aria-hidden="true"></div>
@@ -354,6 +375,7 @@
           document.removeEventListener('touchmove', this._onTouch);
           document.removeEventListener('touchstart', this._onTouch);
         }
+        urlModes.sync();
       },
 
       createClone() {
@@ -445,7 +467,7 @@
         this.integrity = !this.integrity;
         const btn = document.getElementById('integrity-btn');
         btn.textContent = 'integrity [' + (this.integrity ? 'ON' : 'OFF') + ']';
-        btn.className = this.integrity ? 'on' : 'off';
+        btn.className = 'integrity-btn ' + (this.integrity ? 'on' : 'off');
         if (this.active) {
           if (!this.integrity) {
             // Shatter the fallen paragraphs right where they lie
@@ -455,6 +477,7 @@
             this.reassemble();
           }
         }
+        urlModes.sync();
       },
 
       // Split a paragraph's contents into word units. Words get wrapped
@@ -799,6 +822,7 @@
           this.animFrameId = requestAnimationFrame(step);
         };
         this.animFrameId = requestAnimationFrame(step);
+        urlModes.sync();
       },
 
       createWalls(vw, vh) {
@@ -869,6 +893,7 @@
         this.walls = [];
         this.fallingEls = [];
         this.savedChildren = null;
+        urlModes.sync();
       }
     };
 
@@ -929,6 +954,7 @@
           this.raf = requestAnimationFrame(loop);
         };
         this.raf = requestAnimationFrame(loop);
+        urlModes.sync();
       },
 
       exit() {
@@ -943,6 +969,7 @@
         window.removeEventListener('mousemove', this._onMove);
         window.removeEventListener('touchmove', this._onTouch);
         window.removeEventListener('resize', this._onResize);
+        urlModes.sync();
       },
 
       buildPool() {
@@ -1138,6 +1165,53 @@
     };
 
     // ==========================================
+    // URL MODES (#magnify,gulu,gravity / gravity:words)
+    // ==========================================
+    const urlModes = {
+      updating: false,
+
+      init() {
+        window.addEventListener('hashchange', () => this.apply());
+        this.apply();
+      },
+
+      current() {
+        const parts = [];
+        if (magnifier.active) parts.push('magnify');
+        if (guluMode.active) parts.push('gulu');
+        if (gravity.active) parts.push(gravity.integrity ? 'gravity' : 'gravity:words');
+        return parts;
+      },
+
+      // Reflect the active modes into the hash without polluting history
+      sync() {
+        if (this.updating) return;
+        const h = this.current().join(',');
+        history.replaceState(null, '', h ? '#' + h : window.location.pathname + window.location.search);
+      },
+
+      // Drive the modes from the hash (on load and on manual edits)
+      apply() {
+        this.updating = true;
+        const tokens = window.location.hash.replace('#', '').split(',').filter(Boolean);
+        const wantMagnify = tokens.indexOf('magnify') >= 0;
+        const wantGulu = tokens.indexOf('gulu') >= 0;
+        const wantGravity = tokens.indexOf('gravity') >= 0 || tokens.indexOf('gravity:words') >= 0;
+        const wantIntegrity = tokens.indexOf('gravity:words') < 0;
+
+        if (wantMagnify !== magnifier.active) magnifier.toggle();
+        if (wantGulu !== guluMode.active) { if (wantGulu) guluMode.enter(); else guluMode.exit(); }
+        // Order matters: drop gravity before flipping integrity so a hash
+        // clear doesn't reassemble first, and set integrity before a fresh
+        // enable so the drop starts at the right granularity
+        if (!wantGravity && gravity.active) gravity.disable();
+        if (wantIntegrity !== gravity.integrity) gravity.toggleIntegrity();
+        if (wantGravity && !gravity.active) gravity.enable();
+        this.updating = false;
+      }
+    };
+
+    // ==========================================
     // INIT
     // ==========================================
     document.addEventListener('DOMContentLoaded', () => {
@@ -1145,6 +1219,7 @@
       magnifier.init();
       gravity.init();
       guluMode.init();
+      urlModes.init();
     });
   })();
   </script>
