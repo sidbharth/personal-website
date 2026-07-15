@@ -207,12 +207,6 @@
   <audio id="water-sfx" src="water-sfx.mp3" preload="none" loop></audio>
   <div id="magnifier" aria-hidden="true"></div>
 
-  <script type="module">
-    // pretext (https://pretextjs.dev) — DOM-free text layout engine,
-    // vendored in ./pretext/. Powers the gulu gulu water layout.
-    import { prepareWithSegments, layoutWithLines, measureNaturalWidth } from './pretext/layout.js';
-    window.Pretext = { prepareWithSegments, layoutWithLines, measureNaturalWidth };
-  </script>
   <script>
   (function() {
     'use strict';
@@ -910,8 +904,6 @@
       mouse: { x: 0, y: 0 },
       raf: null,
       font: '16px "Times New Roman", Times, serif',
-      prepared: null,
-      preparedCount: 0,
       ripples: [],
       lastFrame: 0,
       lastRipple: 0,
@@ -983,47 +975,14 @@
         this.ctx = this.canvas.getContext('2d');
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.words = [];
+        // One word repeated forever needs no measuring: fixed cells,
+        // alternate rows staggered brick-style
+        const cellW = 54;
         const cellH = 26;
-        let built = false;
-
-        const P = window.Pretext;
-        if (P) {
-          try {
-            // pretext lays out the water: prepare the gulu wall once, then
-            // every reflow (open, resize) is pure arithmetic — no DOM reads.
-            const advance = P.measureNaturalWidth(P.prepareWithSegments('gulu gulu', this.font))
-                          - P.measureNaturalWidth(P.prepareWithSegments('gulu', this.font));
-            if (advance > 0) {
-              const count = (Math.ceil(w / advance) + 2) * (Math.ceil(hgt / cellH) + 1);
-              if (!this.prepared || count > this.preparedCount) {
-                this.preparedCount = count;
-                this.prepared = P.prepareWithSegments('gulu '.repeat(count).trim(), this.font);
-              }
-              const laidOut = P.layoutWithLines(this.prepared, w + advance, cellH);
-              for (let row = 0; row < laidOut.lines.length; row++) {
-                const y = cellH + row * cellH;
-                if (y > hgt + cellH) break;
-                const stagger = (row % 2) * (advance / 2);
-                const wordCount = laidOut.lines[row].text.split(' ').length;
-                for (let col = 0; col < wordCount; col++) {
-                  this.words.push({ x: col * advance - stagger, y: y });
-                }
-              }
-              built = this.words.length > 0;
-            }
-          } catch (e) {
-            this.words = [];
-          }
-        }
-
-        if (!built) {
-          // Fallback grid if the pretext module didn't load
-          const cellW = 54;
-          for (let y = cellH; y < hgt + cellH; y += cellH) {
-            const stagger = ((y / cellH) % 2) * (cellW / 2);
-            for (let x = -stagger; x < w + cellW; x += cellW) {
-              this.words.push({ x: x, y: y });
-            }
+        for (let y = cellH; y < hgt + cellH; y += cellH) {
+          const stagger = ((y / cellH) % 2) * (cellW / 2);
+          for (let x = -stagger; x < w + cellW; x += cellW) {
+            this.words.push({ x: x, y: y });
           }
         }
       },
