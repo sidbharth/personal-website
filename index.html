@@ -73,23 +73,42 @@
       color: #27ae60;
     }
 
-    /* Integrity is a sub-mode of gravity: nested under it, dimmed
-       until gravity is actually on (class-based so the magnifier's
-       clone inherits the look too) */
+    /* Integrity is a sub-mode of gravity: a small checkbox that pops
+       in nested beneath the gravity button only while gravity is on
+       (class-based so the magnifier's clone inherits the look too) */
     .gravity-group {
       display: inline-flex;
-      gap: 12px;
-      align-items: baseline;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
     }
     .integrity-btn {
-      opacity: 0.45;
+      font-size: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 6px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-4px);
+      transition: opacity 0.25s, transform 0.25s, visibility 0.25s;
+      cursor: pointer;
     }
     .integrity-btn::before {
-      content: '└ ';
+      content: '└';
       color: #bbb;
+    }
+    .integrity-btn input {
+      width: 10px;
+      height: 10px;
+      margin: 0;
+      accent-color: #27ae60;
+      cursor: pointer;
     }
     body.gravity-active .integrity-btn {
       opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
     }
 
     #magnify-trigger:hover {
@@ -193,7 +212,7 @@
     <span id="gulu-btn">gulu gulu mode</span>
     <span class="gravity-group">
       <span id="gravity-btn" class="off">gravity [OFF]</span>
-      <span id="integrity-btn" class="integrity-btn on">integrity [ON]</span>
+      <label id="integrity-btn" class="integrity-btn on"><input type="checkbox" id="integrity-check" checked> integrity</label>
     </span>
   </div>
 
@@ -453,15 +472,19 @@
           if (this.active) this.disable();
           else this.enable();
         });
-        document.getElementById('integrity-btn').addEventListener('click', () => this.toggleIntegrity());
+        document.getElementById('integrity-check').addEventListener('change', () => this.toggleIntegrity());
       },
 
       toggleIntegrity() {
-        if (this.assembling) return;
+        const check = document.getElementById('integrity-check');
+        if (this.assembling) {
+          // Reject the click mid-assembly: snap the box back to reality
+          check.checked = this.integrity;
+          return;
+        }
         this.integrity = !this.integrity;
-        const btn = document.getElementById('integrity-btn');
-        btn.textContent = 'integrity [' + (this.integrity ? 'ON' : 'OFF') + ']';
-        btn.className = 'integrity-btn ' + (this.integrity ? 'on' : 'off');
+        check.checked = this.integrity;
+        document.getElementById('integrity-btn').className = 'integrity-btn ' + (this.integrity ? 'on' : 'off');
         if (this.active) {
           if (!this.integrity) {
             // Shatter the fallen paragraphs right where they lie
