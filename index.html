@@ -1409,9 +1409,9 @@
         const toilet = document.getElementById('toilet');
         if (this.zooming || !toilet.classList.contains('up')) return;
         this.zooming = true;
-        // The lid flips open, holds a beat, then the dive begins
+        // The lid flips open, holds a quick beat, then the dive begins
         document.getElementById('toilet-img').src = 'toilet-open.png';
-        setTimeout(() => this.startZoom(toilet), 500);
+        setTimeout(() => this.startZoom(toilet), 200);
       },
 
       startZoom(toilet) {
