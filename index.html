@@ -176,11 +176,27 @@
       transform: translateY(0);
       transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.7s ease;
     }
+    #toilet.up {
+      pointer-events: auto;
+      cursor: pointer;
+    }
     #toilet.fading {
       opacity: 0;
+      pointer-events: none;
     }
     #toilet.snap {
       transition: none;
+    }
+
+    /* Whitewash behind the toilet while zooming into it */
+    #zoom-veil {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 9996;
+      transition: opacity 0.7s ease;
     }
 
     #magnify-trigger:hover {
@@ -301,7 +317,8 @@
   <div id="chain-zone" aria-hidden="true">
     <svg id="chain-svg" xmlns="http://www.w3.org/2000/svg"></svg>
   </div>
-  <div id="toilet" aria-hidden="true"><img id="toilet-img" src="flush.gif" alt=""></div>
+  <div id="zoom-veil" aria-hidden="true"></div>
+  <div id="toilet" title="read: o bidet, where art thou?"><img id="toilet-img" src="flush.gif" alt="a pixel toilet"></div>
   <div id="magnifier" aria-hidden="true"></div>
 
   <script>
@@ -1329,7 +1346,23 @@
         this.hitEl.addEventListener('pointerup', release);
         this.hitEl.addEventListener('pointercancel', release);
 
+        // Clicking the risen toilet zooms into it, into the essay
+        document.getElementById('toilet').addEventListener('click', () => this.zoomIntoToilet());
+
         this.draw();
+      },
+
+      zoomIntoToilet() {
+        const toilet = document.getElementById('toilet');
+        if (this.zooming || !toilet.classList.contains('up')) return;
+        this.zooming = true;
+        const r = toilet.getBoundingClientRect();
+        const tx = window.innerWidth / 2 - (r.left + r.width / 2);
+        const ty = window.innerHeight / 2 - (r.top + r.height / 2);
+        toilet.style.transition = 'transform 0.85s cubic-bezier(0.7, 0, 0.9, 0.6)';
+        toilet.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(7)';
+        document.getElementById('zoom-veil').style.opacity = '1';
+        setTimeout(() => { window.location.href = 'toilets.html'; }, 820);
       },
 
       startLoop() {
@@ -1417,8 +1450,10 @@
         // Rise (0.65s) + gif (1.2s), hold the open lid ~3s, then fade
         // out in place instead of sinking back down
         setTimeout(() => {
+          if (this.zooming) return;
           toilet.classList.add('fading');
           setTimeout(() => {
+            if (this.zooming) return;
             toilet.classList.add('snap');
             toilet.classList.remove('up');
             toilet.classList.remove('fading');
