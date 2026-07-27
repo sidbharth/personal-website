@@ -494,6 +494,19 @@
           document.addEventListener('mousemove', this._onMove);
           document.addEventListener('touchmove', this._onTouch, { passive: false });
           document.addEventListener('touchstart', this._onTouch, { passive: false });
+          // Any click exits too — people instinctively click to escape.
+          // Attached a tick later so the activating click doesn't
+          // immediately close it; preventDefault stops a blind click
+          // from following a link underneath the lens.
+          if (!this._onClickAway) {
+            this._onClickAway = (e) => {
+              e.preventDefault();
+              if (this.active) this.toggle();
+            };
+          }
+          setTimeout(() => {
+            if (this.active) document.addEventListener('click', this._onClickAway);
+          }, 0);
         } else {
           this.el.style.display = 'none';
           document.body.style.cursor = '';
@@ -504,6 +517,7 @@
           document.removeEventListener('mousemove', this._onMove);
           document.removeEventListener('touchmove', this._onTouch);
           document.removeEventListener('touchstart', this._onTouch);
+          document.removeEventListener('click', this._onClickAway);
         }
         urlModes.sync();
       },
