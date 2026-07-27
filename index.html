@@ -340,7 +340,7 @@
     <svg id="chain-svg" xmlns="http://www.w3.org/2000/svg"></svg>
   </div>
   <div id="zoom-veil" aria-hidden="true"></div>
-  <div id="toilet" title="read: o bidet, where art thou?"><img id="toilet-img" src="flush.gif" alt="a pixel toilet"></div>
+  <div id="toilet" title="read: o bidet, where art thou?"><img id="toilet-img" src="toilet-closed.png" alt="a pixel toilet"></div>
   <div id="magnifier" aria-hidden="true"></div>
 
   <script>
@@ -1399,6 +1399,8 @@
 
         // Clicking the risen toilet zooms into it, into the essay
         document.getElementById('toilet').addEventListener('click', () => this.zoomIntoToilet());
+        // Warm the open-lid frame so the flip on click is instant
+        new Image().src = 'toilet-open.png';
 
         this.draw();
       },
@@ -1407,6 +1409,12 @@
         const toilet = document.getElementById('toilet');
         if (this.zooming || !toilet.classList.contains('up')) return;
         this.zooming = true;
+        // The lid flips open, holds a beat, then the dive begins
+        document.getElementById('toilet-img').src = 'toilet-open.png';
+        setTimeout(() => this.startZoom(toilet), 500);
+      },
+
+      startZoom(toilet) {
         const veil = document.getElementById('zoom-veil');
         const img = document.getElementById('toilet-img');
         // Keep a handle on the audio so the flush outlives the page swap
@@ -1574,17 +1582,16 @@
       flush() {
         if (this.flushing) return;
         this.flushing = true;
-        this.flushSeq = (this.flushSeq || 0) + 1;
         const toilet = document.getElementById('toilet');
         const audio = document.getElementById('flush-audio');
-        // Restart the one-shot gif; it ends frozen on the open-lid frame
-        document.getElementById('toilet-img').src = 'flush.gif?f=' + this.flushSeq;
+        // The toilet arrives lid closed; clicking it opens the lid
+        document.getElementById('toilet-img').src = 'toilet-closed.png';
         audio.currentTime = 0;
         audio.volume = 0.8;
         audio.play().catch(() => {});
         toilet.classList.add('up');
-        // Rise (0.65s) + gif (1.2s), hold the open lid ~3s, then fade
-        // out in place instead of sinking back down
+        // Rise (0.65s), hold ~4s while the flush plays, then fade out
+        // in place instead of sinking back down
         setTimeout(() => {
           if (this.zooming) return;
           toilet.classList.add('fading');
