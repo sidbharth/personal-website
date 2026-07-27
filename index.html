@@ -136,12 +136,21 @@
       to { transform: rotate(2.2deg); }
     }
     #chain-handle {
+      pointer-events: none;
+    }
+    #chain-hit {
       pointer-events: auto;
       cursor: grab;
       touch-action: none;
     }
-    #chain-svg.grabbed #chain-handle {
+    #chain-svg.grabbed #chain-hit {
       cursor: grabbing;
+    }
+    /* While pulling the chain, the browser gets no scroll gestures —
+       no pull-to-refresh reloads mid-flush */
+    body.chain-dragging {
+      overscroll-behavior: none;
+      touch-action: none;
     }
 
     /* The toilet waits beyond the bottom edge until summoned */
@@ -1213,6 +1222,7 @@
       zone: null,
       links: [],
       handleEl: null,
+      hitEl: null,
       anchor: { x: 70, y: 0 },
       restLen: 150,
       pos: { x: 70, y: 150 },
@@ -1237,7 +1247,7 @@
           this.links.push(link);
         }
 
-        // Wooden pull handle
+        // Wooden pull handle (visual only)
         this.handleEl = document.createElementNS(ns, 'rect');
         this.handleEl.setAttribute('id', 'chain-handle');
         this.handleEl.setAttribute('width', '30');
@@ -1246,14 +1256,29 @@
         this.handleEl.setAttribute('fill', '#8b6f47');
         this.svg.appendChild(this.handleEl);
 
-        this.handleEl.addEventListener('pointerdown', (e) => {
+        // Generous invisible hit area so thumbs can find the handle
+        this.hitEl = document.createElementNS(ns, 'rect');
+        this.hitEl.setAttribute('id', 'chain-hit');
+        this.hitEl.setAttribute('width', '56');
+        this.hitEl.setAttribute('height', '56');
+        this.hitEl.setAttribute('fill', 'transparent');
+        this.svg.appendChild(this.hitEl);
+
+        // Swallow raw touch gestures so mobile browsers don't turn a
+        // chain pull into pull-to-refresh
+        const blockTouch = (e) => e.preventDefault();
+        this.hitEl.addEventListener('touchstart', blockTouch, { passive: false });
+        this.hitEl.addEventListener('touchmove', blockTouch, { passive: false });
+
+        this.hitEl.addEventListener('pointerdown', (e) => {
           e.preventDefault();
           this.dragging = true;
           this.svg.classList.add('grabbed');
-          this.handleEl.setPointerCapture(e.pointerId);
+          document.body.classList.add('chain-dragging');
+          this.hitEl.setPointerCapture(e.pointerId);
           this.startLoop();
         });
-        this.handleEl.addEventListener('pointermove', (e) => {
+        this.hitEl.addEventListener('pointermove', (e) => {
           if (!this.dragging) return;
           const r = this.zone.getBoundingClientRect();
           const lx = e.clientX - r.left;
@@ -1271,9 +1296,10 @@
           this.dragging = false;
           this.armed = true;
           this.svg.classList.remove('grabbed');
+          document.body.classList.remove('chain-dragging');
         };
-        this.handleEl.addEventListener('pointerup', release);
-        this.handleEl.addEventListener('pointercancel', release);
+        this.hitEl.addEventListener('pointerup', release);
+        this.hitEl.addEventListener('pointercancel', release);
 
         this.draw();
       },
@@ -1332,6 +1358,8 @@
         this.handleEl.setAttribute('x', this.pos.x - 15);
         this.handleEl.setAttribute('y', this.pos.y);
         this.handleEl.setAttribute('transform', 'rotate(' + (angle * 0.35) + ' ' + this.pos.x + ' ' + (this.pos.y + 6) + ')');
+        this.hitEl.setAttribute('x', this.pos.x - 28);
+        this.hitEl.setAttribute('y', this.pos.y - 22);
       },
 
       flush() {
