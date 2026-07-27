@@ -111,6 +111,57 @@
       transform: translateY(0);
     }
 
+    /* Dangling flush chain, top right */
+    #chain-zone {
+      position: fixed;
+      top: 0;
+      right: 34px;
+      width: 140px;
+      height: 380px;
+      z-index: 9998;
+      pointer-events: none;
+    }
+    #chain-svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      transform-origin: 70px 0;
+      animation: chain-sway 3.6s ease-in-out infinite alternate;
+    }
+    #chain-svg.grabbed {
+      animation: none;
+    }
+    @keyframes chain-sway {
+      from { transform: rotate(-2.2deg); }
+      to { transform: rotate(2.2deg); }
+    }
+    #chain-handle {
+      pointer-events: auto;
+      cursor: grab;
+      touch-action: none;
+    }
+    #chain-svg.grabbed #chain-handle {
+      cursor: grabbing;
+    }
+
+    /* The toilet waits beyond the bottom edge until summoned */
+    #toilet {
+      position: fixed;
+      right: 26px;
+      bottom: -6px;
+      font-size: 130px;
+      line-height: 1;
+      z-index: 9997;
+      pointer-events: none;
+      user-select: none;
+      transform: translateY(130%);
+      transition: transform 0.9s cubic-bezier(0.5, 0, 0.75, 0.4);
+    }
+    #toilet.up {
+      transform: translateY(0);
+      transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
     #magnify-trigger:hover {
       color: #666;
     }
@@ -224,6 +275,12 @@
   <audio id="meow-audio" src="meow.mp3" preload="none"></audio>
   <audio id="meow-boosted" src="meow-boosted.mp3" preload="none"></audio>
   <audio id="water-sfx" src="water-sfx.mp3" preload="none" loop></audio>
+  <audio id="flush-audio" src="flush.mp3" preload="none"></audio>
+
+  <div id="chain-zone" aria-hidden="true">
+    <svg id="chain-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div id="toilet" aria-hidden="true">🚽</div>
   <div id="magnifier" aria-hidden="true"></div>
 
   <script>
@@ -1149,6 +1206,151 @@
     };
 
     // ==========================================
+    // FLUSH CHAIN + TOILET
+    // ==========================================
+    const flushChain = {
+      svg: null,
+      zone: null,
+      links: [],
+      handleEl: null,
+      anchor: { x: 70, y: 0 },
+      restLen: 150,
+      pos: { x: 70, y: 150 },
+      vel: { x: 0, y: 0 },
+      dragging: false,
+      armed: true,
+      flushing: false,
+      raf: null,
+      LINK_COUNT: 11,
+
+      init() {
+        this.zone = document.getElementById('chain-zone');
+        this.svg = document.getElementById('chain-svg');
+        const ns = 'http://www.w3.org/2000/svg';
+
+        for (let i = 0; i < this.LINK_COUNT; i++) {
+          const link = document.createElementNS(ns, 'ellipse');
+          link.setAttribute('fill', 'none');
+          link.setAttribute('stroke', '#8a8a8a');
+          link.setAttribute('stroke-width', '2');
+          this.svg.appendChild(link);
+          this.links.push(link);
+        }
+
+        // Wooden pull handle
+        this.handleEl = document.createElementNS(ns, 'rect');
+        this.handleEl.setAttribute('id', 'chain-handle');
+        this.handleEl.setAttribute('width', '30');
+        this.handleEl.setAttribute('height', '12');
+        this.handleEl.setAttribute('rx', '5');
+        this.handleEl.setAttribute('fill', '#8b6f47');
+        this.svg.appendChild(this.handleEl);
+
+        this.handleEl.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          this.dragging = true;
+          this.svg.classList.add('grabbed');
+          this.handleEl.setPointerCapture(e.pointerId);
+          this.startLoop();
+        });
+        this.handleEl.addEventListener('pointermove', (e) => {
+          if (!this.dragging) return;
+          const r = this.zone.getBoundingClientRect();
+          const lx = e.clientX - r.left;
+          const ly = e.clientY - r.top;
+          this.pos.x = Math.max(-20, Math.min(lx, 160));
+          this.pos.y = Math.max(this.restLen * 0.55, Math.min(ly, this.restLen + 170));
+          // Pull far enough and the cistern answers
+          if (this.armed && this.pos.y > this.restLen + 95) {
+            this.armed = false;
+            this.flush();
+          }
+        });
+        const release = () => {
+          if (!this.dragging) return;
+          this.dragging = false;
+          this.armed = true;
+          this.svg.classList.remove('grabbed');
+        };
+        this.handleEl.addEventListener('pointerup', release);
+        this.handleEl.addEventListener('pointercancel', release);
+
+        this.draw();
+      },
+
+      startLoop() {
+        if (this.raf) return;
+        const step = () => {
+          if (!this.dragging) {
+            // Underdamped spring back to rest
+            const ax = (this.anchor.x - this.pos.x) * 0.09;
+            const ay = (this.restLen - this.pos.y) * 0.09;
+            this.vel.x = (this.vel.x + ax) * 0.86;
+            this.vel.y = (this.vel.y + ay) * 0.86;
+            this.pos.x += this.vel.x;
+            this.pos.y += this.vel.y;
+            const settled = Math.abs(this.pos.x - this.anchor.x) < 0.4 &&
+                            Math.abs(this.pos.y - this.restLen) < 0.4 &&
+                            Math.abs(this.vel.x) + Math.abs(this.vel.y) < 0.2;
+            if (settled) {
+              this.pos.x = this.anchor.x;
+              this.pos.y = this.restLen;
+              this.vel.x = 0;
+              this.vel.y = 0;
+              this.draw();
+              this.raf = null;
+              return;
+            }
+          } else {
+            this.vel.x = 0;
+            this.vel.y = 0;
+          }
+          this.draw();
+          this.raf = requestAnimationFrame(step);
+        };
+        this.raf = requestAnimationFrame(step);
+      },
+
+      draw() {
+        // Lay the links along the anchor-to-handle line with a light sag
+        const dx = this.pos.x - this.anchor.x;
+        const dy = this.pos.y - this.anchor.y;
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI - 90;
+        for (let i = 0; i < this.LINK_COUNT; i++) {
+          const t = (i + 0.5) / this.LINK_COUNT;
+          const sag = Math.sin(t * Math.PI) * dx * -0.12;
+          const x = this.anchor.x + dx * t + sag;
+          const y = this.anchor.y + dy * t;
+          const link = this.links[i];
+          const wide = i % 2 === 0;
+          link.setAttribute('cx', x);
+          link.setAttribute('cy', y);
+          link.setAttribute('rx', wide ? 3 : 5.5);
+          link.setAttribute('ry', wide ? 7 : 4);
+          link.setAttribute('transform', 'rotate(' + angle + ' ' + x + ' ' + y + ')');
+        }
+        this.handleEl.setAttribute('x', this.pos.x - 15);
+        this.handleEl.setAttribute('y', this.pos.y);
+        this.handleEl.setAttribute('transform', 'rotate(' + (angle * 0.35) + ' ' + this.pos.x + ' ' + (this.pos.y + 6) + ')');
+      },
+
+      flush() {
+        if (this.flushing) return;
+        this.flushing = true;
+        const toilet = document.getElementById('toilet');
+        const audio = document.getElementById('flush-audio');
+        audio.currentTime = 0;
+        audio.volume = 0.8;
+        audio.play().catch(() => {});
+        toilet.classList.add('up');
+        setTimeout(() => {
+          toilet.classList.remove('up');
+          setTimeout(() => { this.flushing = false; }, 900);
+        }, 3200);
+      }
+    };
+
+    // ==========================================
     // URL MODES (#magnify,gulu,gravity / gravity:words)
     // ==========================================
     const urlModes = {
@@ -1203,6 +1405,7 @@
       magnifier.init();
       gravity.init();
       guluMode.init();
+      flushChain.init();
       urlModes.init();
     });
   })();
