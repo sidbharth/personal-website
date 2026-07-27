@@ -143,6 +143,22 @@
       cursor: grab;
       touch-action: none;
     }
+    /* Keep body text clear of the chain lane on narrower windows */
+    @media (max-width: 980px) {
+      #content,
+      #easter-eggs-ui {
+        padding-right: 104px;
+      }
+    }
+    @media (max-width: 600px) {
+      #chain-zone {
+        right: -40px;
+      }
+      #content,
+      #easter-eggs-ui {
+        padding-right: 44px;
+      }
+    }
     #chain-svg.grabbed #chain-hit {
       cursor: grabbing;
     }
@@ -1254,7 +1270,6 @@
       handleEl: null,
       hitEl: null,
       anchor: { x: 70, y: 0 },
-      restLen: 150,
       pos: { x: 70, y: 150 },
       vel: { x: 0, y: 0 },
       dragging: false,
@@ -1264,10 +1279,24 @@
       MAX_LINKS: 30,
       LINK_PITCH: 13,
 
+      // The whole chain scales down on phones so it stays a slim
+      // ornament instead of a text-covering curtain
+      restLength() {
+        return window.innerWidth <= 600 ? 108 : 150;
+      },
+
       init() {
         this.zone = document.getElementById('chain-zone');
         this.svg = document.getElementById('chain-svg');
         const ns = 'http://www.w3.org/2000/svg';
+        this.pos.y = this.restLength();
+        window.addEventListener('resize', () => {
+          if (!this.dragging && !this.raf) {
+            this.pos.x = this.anchor.x;
+            this.pos.y = this.restLength();
+            this.draw();
+          }
+        });
 
         // Wall mount at the anchor
         const mount = document.createElementNS(ns, 'rect');
@@ -1329,10 +1358,12 @@
           const r = this.zone.getBoundingClientRect();
           const lx = e.clientX - r.left;
           const ly = e.clientY - r.top;
+          const RL = this.restLength();
+          const sc = RL / 150;
           this.pos.x = Math.max(-20, Math.min(lx, 160));
-          this.pos.y = Math.max(this.restLen * 0.55, Math.min(ly, this.restLen + 170));
+          this.pos.y = Math.max(RL * 0.55, Math.min(ly, RL + 170 * sc));
           // Pull far enough and the cistern answers
-          if (this.armed && this.pos.y > this.restLen + 95) {
+          if (this.armed && this.pos.y > RL + 95 * sc) {
             this.armed = false;
             this.flush();
           }
@@ -1452,17 +1483,17 @@
           if (!this.dragging) {
             // Underdamped spring back to rest
             const ax = (this.anchor.x - this.pos.x) * 0.09;
-            const ay = (this.restLen - this.pos.y) * 0.09;
+            const ay = (this.restLength() - this.pos.y) * 0.09;
             this.vel.x = (this.vel.x + ax) * 0.86;
             this.vel.y = (this.vel.y + ay) * 0.86;
             this.pos.x += this.vel.x;
             this.pos.y += this.vel.y;
             const settled = Math.abs(this.pos.x - this.anchor.x) < 0.4 &&
-                            Math.abs(this.pos.y - this.restLen) < 0.4 &&
+                            Math.abs(this.pos.y - this.restLength()) < 0.4 &&
                             Math.abs(this.vel.x) + Math.abs(this.vel.y) < 0.2;
             if (settled) {
               this.pos.x = this.anchor.x;
-              this.pos.y = this.restLen;
+              this.pos.y = this.restLength();
               this.vel.x = 0;
               this.vel.y = 0;
               this.draw();
@@ -1490,11 +1521,13 @@
         // Fixed-size links at a fixed pitch: pulling doesn't stretch
         // them, it feeds more chain out of the wall mount. Links are
         // indexed from the handle so the bottom of the chain is stable.
-        const ry = this.LINK_PITCH * 0.78;
+        const sc = this.restLength() / 150;
+        const pitch = this.LINK_PITCH * sc;
+        const ry = pitch * 0.78;
         for (let i = 0; i < this.MAX_LINKS; i++) {
           const link = this.links[i];
-          const d = len - (i + 0.5) * this.LINK_PITCH;
-          if (d < -this.LINK_PITCH) {
+          const d = len - (i + 0.5) * pitch;
+          if (d < -pitch) {
             link.setAttribute('display', 'none');
             continue;
           }
@@ -1509,9 +1542,12 @@
           link.setAttribute('ry', ry);
           link.setAttribute('transform', 'rotate(' + angle + ' ' + x + ' ' + y + ')');
         }
-        this.handleEl.setAttribute('x', this.pos.x - 17);
+        this.handleEl.setAttribute('width', 34 * sc);
+        this.handleEl.setAttribute('height', 13 * sc);
+        this.handleEl.setAttribute('rx', 6 * sc);
+        this.handleEl.setAttribute('x', this.pos.x - 17 * sc);
         this.handleEl.setAttribute('y', this.pos.y);
-        this.handleEl.setAttribute('transform', 'rotate(' + (angle * 0.35) + ' ' + this.pos.x + ' ' + (this.pos.y + 6) + ')');
+        this.handleEl.setAttribute('transform', 'rotate(' + (angle * 0.35) + ' ' + this.pos.x + ' ' + (this.pos.y + 6 * sc) + ')');
         this.hitEl.setAttribute('x', this.pos.x - 28);
         this.hitEl.setAttribute('y', this.pos.y - 22);
       },
