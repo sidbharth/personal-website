@@ -184,9 +184,9 @@
       display: block;
       width: min(210px, 48vw);
       height: auto;
-      /* The gif has 4.6% transparent padding under the base; push it
-         past the edge so the porcelain sits on the screen bottom */
-      transform: translateY(4.6%);
+      /* Sink the transparent padding AND the rectangular plinth below
+         the screen edge, so the toilet always reads as grounded */
+      transform: translateY(13%);
     }
     #toilet.up {
       transform: translateY(0);
@@ -1438,7 +1438,7 @@
         toilet.style.zIndex = '10000';
         toilet.style.pointerEvents = 'none';
         img.style.width = '100%';
-        img.style.transform = 'translateY(4.6%)';
+        img.style.transform = 'translateY(13%)';
         veil.style.position = 'fixed';
         veil.style.inset = '0';
         veil.style.background = '#fff';
