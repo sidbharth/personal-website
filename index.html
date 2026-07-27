@@ -156,15 +156,18 @@
     /* The toilet waits beyond the bottom edge until summoned */
     #toilet {
       position: fixed;
-      right: 26px;
-      bottom: -6px;
-      font-size: 130px;
-      line-height: 1;
+      right: 18px;
+      bottom: -4px;
       z-index: 9997;
       pointer-events: none;
       user-select: none;
       transform: translateY(130%);
       transition: transform 0.9s cubic-bezier(0.5, 0, 0.75, 0.4);
+    }
+    #toilet img {
+      display: block;
+      width: 210px;
+      height: auto;
     }
     #toilet.up {
       transform: translateY(0);
@@ -289,7 +292,7 @@
   <div id="chain-zone" aria-hidden="true">
     <svg id="chain-svg" xmlns="http://www.w3.org/2000/svg"></svg>
   </div>
-  <div id="toilet" aria-hidden="true">🚽</div>
+  <div id="toilet" aria-hidden="true"><img id="toilet-img" src="flush.gif" alt=""></div>
   <div id="magnifier" aria-hidden="true"></div>
 
   <script>
@@ -1238,11 +1241,24 @@
         this.svg = document.getElementById('chain-svg');
         const ns = 'http://www.w3.org/2000/svg';
 
+        // Wall mount at the anchor
+        const mount = document.createElementNS(ns, 'rect');
+        mount.setAttribute('x', this.anchor.x - 7);
+        mount.setAttribute('y', '0');
+        mount.setAttribute('width', '14');
+        mount.setAttribute('height', '6');
+        mount.setAttribute('rx', '2');
+        mount.setAttribute('fill', '#3f3f3f');
+        this.svg.appendChild(mount);
+
+        // Alternating face-on and edge-on links, overlapped so they
+        // read as interlocked
         for (let i = 0; i < this.LINK_COUNT; i++) {
           const link = document.createElementNS(ns, 'ellipse');
-          link.setAttribute('fill', 'none');
-          link.setAttribute('stroke', '#8a8a8a');
-          link.setAttribute('stroke-width', '2');
+          const wide = i % 2 === 0;
+          link.setAttribute('fill', wide ? 'rgba(90, 90, 90, 0.15)' : 'none');
+          link.setAttribute('stroke', wide ? '#3f3f3f' : '#606060');
+          link.setAttribute('stroke-width', wide ? '2.6' : '2.2');
           this.svg.appendChild(link);
           this.links.push(link);
         }
@@ -1250,10 +1266,12 @@
         // Wooden pull handle (visual only)
         this.handleEl = document.createElementNS(ns, 'rect');
         this.handleEl.setAttribute('id', 'chain-handle');
-        this.handleEl.setAttribute('width', '30');
-        this.handleEl.setAttribute('height', '12');
-        this.handleEl.setAttribute('rx', '5');
-        this.handleEl.setAttribute('fill', '#8b6f47');
+        this.handleEl.setAttribute('width', '34');
+        this.handleEl.setAttribute('height', '13');
+        this.handleEl.setAttribute('rx', '6');
+        this.handleEl.setAttribute('fill', '#7a5a35');
+        this.handleEl.setAttribute('stroke', '#4a3722');
+        this.handleEl.setAttribute('stroke-width', '1.6');
         this.svg.appendChild(this.handleEl);
 
         // Generous invisible hit area so thumbs can find the handle
@@ -1342,6 +1360,10 @@
         const dx = this.pos.x - this.anchor.x;
         const dy = this.pos.y - this.anchor.y;
         const angle = Math.atan2(dy, dx) * 180 / Math.PI - 90;
+        // Overlap adjacent links by ~45% of their height so the chain
+        // reads as interlocked rings, not beads on a string
+        const seg = Math.hypot(dx, dy) / this.LINK_COUNT;
+        const ry = seg * 0.74;
         for (let i = 0; i < this.LINK_COUNT; i++) {
           const t = (i + 0.5) / this.LINK_COUNT;
           const sag = Math.sin(t * Math.PI) * dx * -0.12;
@@ -1351,11 +1373,11 @@
           const wide = i % 2 === 0;
           link.setAttribute('cx', x);
           link.setAttribute('cy', y);
-          link.setAttribute('rx', wide ? 3 : 5.5);
-          link.setAttribute('ry', wide ? 7 : 4);
+          link.setAttribute('rx', wide ? ry * 0.62 : ry * 0.26);
+          link.setAttribute('ry', ry);
           link.setAttribute('transform', 'rotate(' + angle + ' ' + x + ' ' + y + ')');
         }
-        this.handleEl.setAttribute('x', this.pos.x - 15);
+        this.handleEl.setAttribute('x', this.pos.x - 17);
         this.handleEl.setAttribute('y', this.pos.y);
         this.handleEl.setAttribute('transform', 'rotate(' + (angle * 0.35) + ' ' + this.pos.x + ' ' + (this.pos.y + 6) + ')');
         this.hitEl.setAttribute('x', this.pos.x - 28);
@@ -1365,8 +1387,11 @@
       flush() {
         if (this.flushing) return;
         this.flushing = true;
+        this.flushSeq = (this.flushSeq || 0) + 1;
         const toilet = document.getElementById('toilet');
         const audio = document.getElementById('flush-audio');
+        // Restart the gif animation from frame one on every summon
+        document.getElementById('toilet-img').src = 'flush.gif?f=' + this.flushSeq;
         audio.currentTime = 0;
         audio.volume = 0.8;
         audio.play().catch(() => {});
@@ -1374,7 +1399,7 @@
         setTimeout(() => {
           toilet.classList.remove('up');
           setTimeout(() => { this.flushing = false; }, 900);
-        }, 3200);
+        }, 4400);
       }
     };
 
