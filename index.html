@@ -55,7 +55,7 @@
       display: flex;
       justify-content: space-between;
       font-size: 12px;
-      color: #999;
+      color: #000;
       font-family: monospace;
       user-select: none;
     }
@@ -96,7 +96,7 @@
     }
     .integrity-btn::before {
       content: '└';
-      color: #bbb;
+      color: #000;
     }
     .integrity-btn input {
       width: 10px;
@@ -200,7 +200,8 @@
     }
 
     #magnify-trigger:hover {
-      color: #666;
+      color: #000;
+      text-decoration: underline;
     }
 
     #nyan-container {
@@ -232,7 +233,7 @@
       transform: translateX(-50%);
       font-family: monospace;
       font-size: 12px;
-      color: rgba(30, 80, 140, 0.5);
+      color: #000;
       user-select: none;
     }
 
@@ -256,7 +257,7 @@
       display: flex;
       justify-content: space-between;
       font-size: 12px;
-      color: #999;
+      color: #000;
       font-family: monospace;
     }
     #magnifier .mag-ui .off { color: #c0392b; }
@@ -520,7 +521,7 @@
         // "[esc] to exit" label
         const label = document.createElement('span');
         label.textContent = '[esc] to exit';
-        label.style.cssText = 'position:absolute;top:4px;right:6px;font:10px monospace;color:#999;z-index:1;';
+        label.style.cssText = 'position:absolute;top:4px;right:6px;font:10px monospace;color:#000;z-index:1;';
         this.el.appendChild(label);
       },
 
@@ -1356,13 +1357,93 @@
         const toilet = document.getElementById('toilet');
         if (this.zooming || !toilet.classList.contains('up')) return;
         this.zooming = true;
+        const veil = document.getElementById('zoom-veil');
+        const img = document.getElementById('toilet-img');
+        // Keep a handle on the audio so the flush outlives the page swap
+        this.audioKeep = document.getElementById('flush-audio');
+
         const r = toilet.getBoundingClientRect();
         const tx = window.innerWidth / 2 - (r.left + r.width / 2);
         const ty = window.innerHeight / 2 - (r.top + r.height / 2);
         toilet.style.transition = 'transform 0.85s cubic-bezier(0.7, 0, 0.9, 0.6)';
         toilet.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(7)';
-        document.getElementById('zoom-veil').style.opacity = '1';
-        setTimeout(() => { window.location.href = 'toilets.html'; }, 820);
+        veil.style.opacity = '1';
+
+        // Fetch the essay while the zoom plays out
+        const essayReq = fetch('toilets.html').then(res => res.text()).catch(() => null);
+
+        setTimeout(() => {
+          essayReq.then(html => {
+            if (!html) {
+              // Can't swap in place; fall back to a hard navigation
+              window.location.href = 'toilets.html';
+              return;
+            }
+            this.revealEssay(html, toilet, veil, img);
+          });
+        }, 870);
+      },
+
+      // Swap the page for the essay underneath the zoomed toilet, then
+      // fade the toilet away to reveal it. No navigation, so the flush
+      // sound plays to its natural end.
+      revealEssay(html, toilet, veil, img) {
+        try { if (gravity.active) gravity.disable(); } catch (e) {}
+        try { if (guluMode.active) guluMode.exit(); } catch (e) {}
+        try { if (magnifier.active) magnifier.toggle(); } catch (e) {}
+
+        // Freeze the zoomed toilet at its visual rect with inline styles
+        // so it survives losing this page's stylesheet
+        const r = toilet.getBoundingClientRect();
+        toilet.style.transition = 'none';
+        toilet.style.transform = 'none';
+        toilet.style.position = 'fixed';
+        toilet.style.left = r.left + 'px';
+        toilet.style.top = r.top + 'px';
+        toilet.style.width = r.width + 'px';
+        toilet.style.height = r.height + 'px';
+        toilet.style.right = 'auto';
+        toilet.style.bottom = 'auto';
+        toilet.style.zIndex = '10000';
+        toilet.style.pointerEvents = 'none';
+        img.style.width = '100%';
+        img.style.transform = 'translateY(4.6%)';
+        veil.style.position = 'fixed';
+        veil.style.inset = '0';
+        veil.style.background = '#fff';
+        veil.style.zIndex = '9999';
+        veil.style.opacity = '1';
+        veil.style.pointerEvents = 'none';
+
+        // Become the essay page
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        document.title = doc.title;
+        const myStyle = document.querySelector('head style');
+        const newStyle = doc.querySelector('head style');
+        if (myStyle && newStyle) myStyle.textContent = newStyle.textContent;
+        document.body.className = '';
+        document.body.innerHTML = doc.body.innerHTML;
+        window.scrollTo(0, 0);
+        history.pushState(null, '', 'toilets.html');
+        window.addEventListener('popstate', () => window.location.reload());
+
+        // The audio rides along; the toilet and veil float on top
+        document.body.appendChild(this.audioKeep);
+        document.body.appendChild(veil);
+        document.body.appendChild(toilet);
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            toilet.style.transition = 'opacity 0.9s ease';
+            veil.style.transition = 'opacity 0.9s ease';
+            toilet.style.opacity = '0';
+            veil.style.opacity = '0';
+            setTimeout(() => {
+              toilet.remove();
+              veil.remove();
+            }, 950);
+          });
+        });
       },
 
       startLoop() {
