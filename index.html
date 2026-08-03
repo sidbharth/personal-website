@@ -75,7 +75,7 @@
 
     /* Integrity is a sub-mode of gravity: a small checkbox that pops
        in nested beneath the gravity button only while gravity is on
-       (class-based so the magnifier's clone inherits the look too) */
+       only while gravity is on */
     .gravity-group {
       display: inline-flex;
       flex-direction: column;
@@ -220,10 +220,6 @@
       transition: opacity 0.7s ease;
     }
 
-    #magnify-trigger:hover {
-      color: #000;
-      text-decoration: underline;
-    }
 
     #nyan-container {
       display: none;
@@ -258,32 +254,6 @@
       user-select: none;
     }
 
-    #magnifier {
-      display: none;
-      position: fixed;
-      width: 250px;
-      height: 250px;
-      border: 2px solid #333;
-      pointer-events: none;
-      z-index: 10000;
-      overflow: hidden;
-      background: #fff;
-    }
-
-    /* Mirrored id-based styles for the magnifier's clones */
-    #magnifier .mag-content p {
-      margin-bottom: 0.5em;
-    }
-    #magnifier .mag-ui {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #000;
-      font-family: monospace;
-    }
-    #magnifier .mag-ui .off { color: #c0392b; }
-    #magnifier .mag-ui .on { color: #27ae60; }
-
     body.gravity-active {
       overflow: hidden;
     }
@@ -302,9 +272,6 @@
         align-items: flex-start;
         gap: 4px;
       }
-      #magnify-trigger {
-        display: none;
-      }
     }
   </style>
 </head>
@@ -318,7 +285,6 @@
   </main>
 
   <div id="easter-eggs-ui">
-    <span id="magnify-trigger">i have trouble reading</span>
     <span id="gulu-btn">gulu gulu mode</span>
     <span class="gravity-group">
       <span id="gravity-btn" class="off">gravity [OFF]</span>
@@ -341,7 +307,6 @@
   </div>
   <div id="zoom-veil" aria-hidden="true"></div>
   <div id="toilet" title="read: o bidet, where art thou?"><img id="toilet-img" src="toilet-closed.png" alt="a pixel toilet"></div>
-  <div id="magnifier" aria-hidden="true"></div>
 
   <script>
   (function() {
@@ -447,137 +412,6 @@
 
       launchGiant() {
         this.launch(true);
-      }
-    };
-
-    // ==========================================
-    // MAGNIFYING GLASS
-    // ==========================================
-    const magnifier = {
-      active: false,
-      el: null,
-      clone: null,
-      zoom: 2.5,
-
-      getSize() { return window.innerWidth <= 600 ? 200 : 250; },
-
-      init() {
-        this.el = document.getElementById('magnifier');
-        document.getElementById('magnify-trigger').addEventListener('click', () => this.toggle());
-        this._onMove = (e) => this.updatePosition(e.clientX, e.clientY);
-        this._onTouch = (e) => {
-          e.preventDefault();
-          const t = e.touches[0];
-          const isMobile = window.innerWidth <= 600;
-          this.updatePosition(t.clientX, t.clientY + (isMobile ? -80 : 0));
-        };
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && this.active) this.toggle();
-        });
-        // The flex centering moves with the viewport, so cloned
-        // positions go stale on resize
-        window.addEventListener('resize', () => {
-          if (this.active) this.createClone();
-        });
-      },
-
-      toggle() {
-        this.active = !this.active;
-        const trigger = document.getElementById('magnify-trigger');
-
-        if (this.active) {
-          this.createClone();
-          this.el.style.display = 'block';
-          document.body.style.cursor = 'none';
-          trigger.style.color = '#000';
-          trigger.style.fontWeight = 'bold';
-          document.addEventListener('mousemove', this._onMove);
-          document.addEventListener('touchmove', this._onTouch, { passive: false });
-          document.addEventListener('touchstart', this._onTouch, { passive: false });
-          // Any click exits too — people instinctively click to escape.
-          // Attached a tick later so the activating click doesn't
-          // immediately close it; preventDefault stops a blind click
-          // from following a link underneath the lens.
-          if (!this._onClickAway) {
-            this._onClickAway = (e) => {
-              e.preventDefault();
-              if (this.active) this.toggle();
-            };
-          }
-          setTimeout(() => {
-            if (this.active) document.addEventListener('click', this._onClickAway);
-          }, 0);
-        } else {
-          this.el.style.display = 'none';
-          document.body.style.cursor = '';
-          trigger.style.color = '';
-          trigger.style.fontWeight = '';
-          while (this.el.firstChild) this.el.firstChild.remove();
-          this.clone = null;
-          document.removeEventListener('mousemove', this._onMove);
-          document.removeEventListener('touchmove', this._onTouch);
-          document.removeEventListener('touchstart', this._onTouch);
-          document.removeEventListener('click', this._onClickAway);
-        }
-        urlModes.sync();
-      },
-
-      createClone() {
-        while (this.el.firstChild) this.el.firstChild.remove();
-
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:absolute;top:0;left:0;transform-origin:0 0;transform:scale(' + this.zoom + ');pointer-events:none;';
-        const bodyStyles = window.getComputedStyle(document.body);
-        wrapper.style.fontFamily = bodyStyles.fontFamily;
-        wrapper.style.fontSize = bodyStyles.fontSize;
-        wrapper.style.lineHeight = bodyStyles.lineHeight;
-        wrapper.style.color = bodyStyles.color;
-
-        // Clone each block at its real on-page position, so the magnified
-        // copy lines up exactly with what sits under the lens
-        [['content', 'mag-content'], ['easter-eggs-ui', 'mag-ui']].forEach((pair) => {
-          const src = document.getElementById(pair[0]);
-          const rect = src.getBoundingClientRect();
-          const clone = src.cloneNode(true);
-          clone.removeAttribute('id');
-          clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
-          clone.classList.add(pair[1]);
-          clone.style.position = 'absolute';
-          clone.style.left = (rect.left + window.scrollX) + 'px';
-          clone.style.top = (rect.top + window.scrollY) + 'px';
-          clone.style.width = rect.width + 'px';
-          clone.style.margin = '0';
-          wrapper.appendChild(clone);
-        });
-
-        this.el.appendChild(wrapper);
-        this.clone = wrapper;
-
-        // "[esc] to exit" label
-        const label = document.createElement('span');
-        label.textContent = '[esc] to exit';
-        label.style.cssText = 'position:absolute;top:4px;right:6px;font:10px monospace;color:#000;z-index:1;';
-        this.el.appendChild(label);
-      },
-
-      updatePosition(clientX, clientY) {
-        const size = this.getSize();
-        const half = size / 2;
-
-        // Center the lens on the cursor, but keep it inside the viewport
-        const left = Math.max(0, Math.min(clientX - half, window.innerWidth - size));
-        const top = Math.max(0, Math.min(clientY - half, window.innerHeight - size));
-        this.el.style.left = left + 'px';
-        this.el.style.top = top + 'px';
-
-        if (this.clone) {
-          // The magnified point under the cursor stays under the cursor,
-          // even when the lens is clamped at a viewport edge
-          const pageX = clientX + (window.scrollX || 0);
-          const pageY = clientY + (window.scrollY || 0);
-          this.clone.style.left = (clientX - left - pageX * this.zoom) + 'px';
-          this.clone.style.top = (clientY - top - pageY * this.zoom) + 'px';
-        }
       }
     };
 
@@ -1448,7 +1282,6 @@
       revealEssay(html, toilet, veil, img) {
         try { if (gravity.active) gravity.disable(); } catch (e) {}
         try { if (guluMode.active) guluMode.exit(); } catch (e) {}
-        try { if (magnifier.active) magnifier.toggle(); } catch (e) {}
 
         // Freeze the zoomed toilet at its visual rect with inline styles
         // so it survives losing this page's stylesheet
@@ -1609,7 +1442,7 @@
     };
 
     // ==========================================
-    // URL MODES (#magnify,gulu,gravity / gravity:words)
+    // URL MODES (#gulu,gravity / gravity:words)
     // ==========================================
     const urlModes = {
       updating: false,
@@ -1621,7 +1454,6 @@
 
       current() {
         const parts = [];
-        if (magnifier.active) parts.push('magnify');
         if (guluMode.active) parts.push('gulu');
         if (gravity.active) parts.push(gravity.integrity ? 'gravity' : 'gravity:words');
         return parts;
@@ -1638,12 +1470,10 @@
       apply() {
         this.updating = true;
         const tokens = window.location.hash.replace('#', '').split(',').filter(Boolean);
-        const wantMagnify = tokens.indexOf('magnify') >= 0;
         const wantGulu = tokens.indexOf('gulu') >= 0;
         const wantGravity = tokens.indexOf('gravity') >= 0 || tokens.indexOf('gravity:words') >= 0;
         const wantIntegrity = tokens.indexOf('gravity:words') < 0;
 
-        if (wantMagnify !== magnifier.active) magnifier.toggle();
         if (wantGulu !== guluMode.active) { if (wantGulu) guluMode.enter(); else guluMode.exit(); }
         // Order matters: drop gravity before flipping integrity so a hash
         // clear doesn't reassemble first, and set integrity before a fresh
@@ -1660,7 +1490,6 @@
     // ==========================================
     document.addEventListener('DOMContentLoaded', () => {
       nyanCat.init();
-      magnifier.init();
       gravity.init();
       guluMode.init();
       flushChain.init();
